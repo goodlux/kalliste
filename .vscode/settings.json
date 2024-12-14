@@ -1,0 +1,5 @@
+{
+    "jupyter.notebookFileRoot": "${workspaceFolder}",
+    "jupyter.useNotebookEditor": true,
+    "python.analysis.autoImportCompletions": true
+}

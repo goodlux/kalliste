@@ -1,0 +1,7 @@
+# test image directory
+img/
+
+config/
+
+.DS_Store
+
