@@ -1,0 +1,1 @@
+"""Kalliste - Image Dataset Manager"""

@@ -1,0 +1,15 @@
+setup.py
+kalliste/__init__.py
+kalliste/test_crop.py
+kalliste.egg-info/PKG-INFO
+kalliste.egg-info/SOURCES.txt
+kalliste.egg-info/dependency_links.txt
+kalliste.egg-info/requires.txt
+kalliste.egg-info/top_level.txt
+kalliste/models/__init__.py
+kalliste/models/exported_image.py
+kalliste/processors/__init__.py
+kalliste/processors/crop_processor.py
+notebooks/__init__.py
+notebooks/pipeline_setup.py
+notebooks/pipeline_setup_test.py
