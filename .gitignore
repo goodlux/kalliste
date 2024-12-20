@@ -1,7 +1,76 @@
-# test image directory
+# Project-specific
 img/
-
 config/
+weights/
+chromadb/
+# Add explicit ignores for any ChromaDB paths/patterns
+**/chroma.sqlite3
+**/chroma.sqlite3-*
+**/*.parquet
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Local development
+*.local
+*.dev
