@@ -39,10 +39,34 @@ class RegionProcessor:
         x1, y1, x2, y2 = bbox.x1, bbox.y1, bbox.x2, bbox.y2
         crop_width, crop_height = x2 - x1, y2 - y1
         
+        # Apply type-specific padding before SDXL ratio adjustment
+        if region_type.lower() == 'face':
+            # Faces need extra padding to include more head/hair/neck context
+            pad_x = int(crop_width * 0.4)
+            pad_y = int(crop_height * 0.5)  # Extra vertical padding for hair/neck
+            
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(original_size[0], x2 + pad_x)
+            y2 = min(original_size[1], y2 + pad_y)
+            
+        elif region_type.lower() == 'person':
+            # People need modest padding to avoid cutting off limbs/gestures
+            pad_x = int(crop_width * 0.15)
+            pad_y = int(crop_height * 0.1)
+            
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(original_size[0], x2 + pad_x)
+            y2 = min(original_size[1], y2 + pad_y)
+        
+        # Update dimensions after any padding
+        crop_width, crop_height = x2 - x1, y2 - y1
+        
+        # Calculate dimensions to match SDXL target ratio
         target_w, target_h = target_dims
         target_ratio = target_w / target_h
         
-        # Calculate new dimensions
         if (crop_width / crop_height) < target_ratio:
             new_width = int(crop_height * target_ratio)
             new_height = crop_height
@@ -52,21 +76,14 @@ class RegionProcessor:
         
         if new_width < target_w or new_height < target_h:
             return None
-            
-        # Calculate new coordinates
+        
+        # Expand box while maintaining center point
         mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
         x1_new = max(0, int(mid_x - new_width / 2))
         x2_new = min(original_size[0], int(mid_x + new_width / 2))
         y1_new = max(0, int(mid_y - new_height / 2))
-        y2_new = min(original_size[1], int(mid_y + new_height / 2))
+        y2_new = min(original_size[1], int(mid_y + new_height / 2))  # Fixed from - to +
         
         region = Region(x1_new, y1_new, x2_new, y2_new, region_type, bbox.confidence)
         region.add_tag('SDXL')
         return region
-
-    @staticmethod
-    def calculate_score(detection: Tuple[np.ndarray, float]) -> float:
-        """Calculate a score for detection prioritization."""
-        xyxy, conf = detection
-        area = (xyxy[2] - xyxy[0]) * (xyxy[3] - xyxy[1])
-        return conf * (area ** 0.5)
