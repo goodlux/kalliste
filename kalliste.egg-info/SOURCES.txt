@@ -13,9 +13,8 @@ kalliste/models/__init__.py
 kalliste/models/exported_image.py
 kalliste/processors/__init__.py
 kalliste/processors/crop_processor.py
+kalliste/processors/detection_pipeline.py
 kalliste/processors/region_processor.py
 kalliste/processors/taggers.py
 kalliste/processors/test_taggers.py
 notebooks/__init__.py
-notebooks/pipeline_setup.py
-notebooks/pipeline_setup_test.py

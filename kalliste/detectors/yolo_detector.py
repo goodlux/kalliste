@@ -4,26 +4,56 @@ from typing import List, Dict, Tuple, Optional
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
+import sys
+import logging
 
 from .base import BaseDetector, DetectionConfig, Region
+
+logger = logging.getLogger(__name__)
 
 class YOLODetector(BaseDetector):
     """YOLO-based detector supporting multiple detection types."""
     
+    DEFAULT_MODEL = "yolov8n"  # Default to nano model if none specified
+    DEFAULT_YOLO_DIR = Path.home() / '.config' / 'ultralytics'
+    
     def __init__(self, 
-                 model_path: str,
-                 face_model_path: Optional[str] = None,
+                 model: str = DEFAULT_MODEL,
+                 face_model: Optional[str] = None,
                  config: List[DetectionConfig] = None):
         """Initialize YOLO detector.
         
         Args:
-            model_path: Path to YOLO model file
-            face_model_path: Optional path to YOLOv8-face model
+            model: Model name (e.g., 'yolov8n', 'yolov8s', 'yolov8m', etc.)
+                  Will be downloaded to default YOLO location if needed
+            face_model: Optional face detection model name
             config: List of detection configurations
         """
         super().__init__(config)
-        self.model = YOLO(model_path)
-        self.face_model = YOLO(face_model_path) if face_model_path else None
+        
+        # Load main model using just the model name to ensure default location is used
+        model_name = model.removesuffix('.pt')
+        model_path = self.DEFAULT_YOLO_DIR / f"{model_name}.pt"
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        self.model = YOLO(str(model_path))
+            
+        # Load face model if specified
+        self.face_model = None
+        if face_model:
+            try:
+                face_model_name = face_model.removesuffix('.pt')
+                face_model_path = self.DEFAULT_YOLO_DIR / f"{face_model_name}.pt"
+                face_model_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Since face model isn't standard, for now let's skip it if not found
+                if not face_model_path.exists():
+                    logger.warning(f"Face model {face_model_name} not found at {face_model_path}")
+                    logger.warning("Skipping face detection. Please download yolov8n-face.pt manually if needed.")
+                else:
+                    self.face_model = YOLO(str(face_model_path))
+            except Exception as e:
+                logger.error(f"Error loading face model: {e}")
+                logger.warning("Continuing without face detection")
         
         # Map YOLO class indices to our detection types
         # Standard YOLO COCO classes

@@ -6,3 +6,5 @@ piexif
 transformers
 torch
 chromadb
+onnx
+onnxruntime
