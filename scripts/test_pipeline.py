@@ -1,71 +1,66 @@
-"""Test script for the detection and tagging pipeline."""
-import asyncio
-import logging
-from pathlib import Path
-from kalliste.detectors.base import DetectionConfig
-from kalliste.processors.detection_pipeline import DetectionPipeline
+"""Test script for tagger pipeline."""
 
-# Set up logging
+import asyncio
+from pathlib import Path
+import logging
+from typing import Optional
+
+from kalliste.taggers.tagger_pipeline import TaggerPipeline
+from kalliste.taggers.config import PipelineConfig
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def main():
-    # Configure detection
-    configs = [
-        DetectionConfig(name='person', confidence_threshold=0.5),
-        DetectionConfig(name='face', confidence_threshold=0.5)
-    ]
+async def test_pipeline(
+    image_path: Path,
+    config: Optional[PipelineConfig] = None
+) -> None:
+    """Test the tagger pipeline on an image."""
     
-    # Set up input and output paths
-    input_dir = Path('/Users/rob/repos/kalliste/test_images/01_test/input')
-    output_dir = Path('/Users/rob/repos/kalliste/test_images/01_test/output')
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Use default config if none provided
+    config = config or PipelineConfig()
     
     # Initialize pipeline
-    pipeline = DetectionPipeline(
-        model='yolov8n',
-        face_model='yolov8n-face',
-        detection_config=configs,
-        device=None
+    pipeline = TaggerPipeline(config)
+    
+    try:
+        # Process image
+        results = await pipeline.tag_image(image_path)
+        
+        # Print results
+        logger.info("Tagging Results:")
+        for category, tags in results.items():
+            logger.info(f"\n{category.upper()}:")
+            for tag in tags:
+                logger.info(f"  {tag}")
+                
+    except Exception as e:
+        logger.error(f"Pipeline failed: {e}")
+        raise
+
+async def main():
+    logger.info("Starting pipeline test...")
+    
+    # Example configuration
+    config = PipelineConfig(
+        wd14_confidence=0.4,  # Slightly higher confidence threshold
+        wd14_categories=['character', 'style']  # Only include these categories
     )
+    logger.info("Configuration loaded")
     
-    # Get all images in input directory
-    image_files = list(input_dir.glob('*.jpg')) + list(input_dir.glob('*.png'))
+    # Test directory
+    test_dir = Path("/Users/rob/repos/kalliste/test_images/02_test/input")
+    logger.info(f"Looking for images in: {test_dir}")
     
-    if not image_files:
-        logger.error(f"No images found in {input_dir}")
-        return
+    # Process all PNG images in test directory
+    image_paths = list(test_dir.glob("*.png"))
+    logger.info(f"Found {len(image_paths)} PNG files")
     
-    # Process each image
-    for image_path in image_files:
-        logger.info(f"Processing image: {image_path}")
-        results = await pipeline.process_image(image_path, output_dir)
-        
-        # Print results nicely
-        print("\n=== Processing Results ===")
-        print(f"Found {len(results)} regions\n")
-        
-        for i, result in enumerate(results, 1):
-            print(f"Region {i}:")
-            print(f"Type: {result['region']['region_type']}")
-            print(f"Confidence: {result['region']['confidence']:.2f}")
-            print(f"Coordinates: ({result['region']['x1']}, {result['region']['y1']}) -> "
-                  f"({result['region']['x2']}, {result['region']['y2']})")
-            
-            if 'orientation' in result['tags']:
-                orientation = result['tags']['orientation'][0]
-                print(f"Orientation: {orientation.label} ({orientation.confidence:.2f})")
-            
-            if 'caption' in result['tags']:
-                print(f"Caption: {result['tags']['caption']}")
-            
-            if 'wd14' in result['tags']:
-                print("Top WD14 tags:")
-                for tag in result['tags']['wd14'][:5]:
-                    print(f"  - {tag.label} ({tag.confidence:.2f})")
-            
-            print(f"Crop saved to: {result['crop_path']}")
-            print("-" * 50)
+    for image_path in image_paths:
+        logger.info(f"\nProcessing {image_path}")
+        await test_pipeline(image_path, config)
 
 if __name__ == "__main__":
+    logger.info("Script starting...")
     asyncio.run(main())
+    logger.info("Script finished.")
