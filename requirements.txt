@@ -9,3 +9,4 @@ chromadb
 onnx
 onnxruntime
 timm
+rich>=13.0.0  # For pretty error handling

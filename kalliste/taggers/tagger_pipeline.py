@@ -5,11 +5,27 @@ import asyncio
 from pathlib import Path
 import logging
 from dataclasses import dataclass, field
+import torch
+from transformers import (
+    AutoModelForImageClassification, 
+    AutoProcessor,
+    Blip2Processor, 
+    Blip2ForConditionalGeneration
+)
+import timm
+import pandas as pd
 
-from .base_tagger import BaseTagger, TagResult, get_default_device
+from .base_tagger import BaseTagger, get_default_device
+from ..image.types import TagResult
 from .caption_tagger import CaptionTagger
 from .wd14_tagger import WD14Tagger
 from .orientation_tagger import OrientationTagger
+from ..config import (
+    ORIENTATION_MODEL_ID,
+    BLIP2_MODEL_ID,
+    WD14_MODEL_ID,
+    WD14_TAGS_FILE
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,50 +74,94 @@ class TaggerPipeline:
     
     def __init__(self, config: Optional[PipelineConfig] = None):
         """Initialize the tagger pipeline."""
+        logger.info("Creating TaggerPipeline instance")
         self.config = config or PipelineConfig(
             type_configs=self.DEFAULT_TYPE_CONFIGS.copy()
         )
         self.device = self.config.device or get_default_device()
         self.taggers: Dict[str, BaseTagger] = {}
-        self._initialize_taggers()
+        logger.info(f"TaggerPipeline created with device: {self.device}")
     
-    def _initialize_taggers(self):
-        """Initialize all potentially needed taggers."""
-        # Collect all needed taggers across all configs
-        needed_taggers = set()
-        for config in [self.config.default_config, *self.config.type_configs.values()]:
-            needed_taggers.update(config.enabled_taggers)
-
-        # Initialize each needed tagger
-        for tagger_name in needed_taggers:
-            if tagger_name not in self.TAGGER_CLASSES:
-                logger.warning(f"Unknown tagger requested: {tagger_name}")
-                continue
-                
-            logger.info(f"Initializing {tagger_name} tagger")
-            tagger_class = self.TAGGER_CLASSES[tagger_name]
+    async def initialize(self):
+        """Initialize all required models and create tagger instances."""
+        logger.info("Starting tagger pipeline initialization")
+        
+        # Initialize orientation tagger
+        logger.info("Initializing orientation tagger...")
+        try:
+            device = 'cpu' if self.device == 'mps' else self.device
+            orientation_model = AutoModelForImageClassification.from_pretrained(
+                ORIENTATION_MODEL_ID
+            ).to(device)
+            orientation_processor = AutoProcessor.from_pretrained(ORIENTATION_MODEL_ID)
             
-            # Handle special configuration for WD14
-            if tagger_name == 'wd14':
-                self.taggers[tagger_name] = tagger_class(
-                    device=self.device,
-                    confidence_threshold=self.config.default_config.wd14_confidence
-                )
-            else:
-                self.taggers[tagger_name] = tagger_class(device=self.device)
+            self.taggers['orientation'] = OrientationTagger(
+                model=orientation_model,
+                processor=orientation_processor,
+                device=self.device
+            )
+            logger.info("Orientation tagger created successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize orientation tagger: {e}")
+            raise
+            
+        # Initialize caption tagger
+        logger.info("Initializing caption tagger...")
+        try:
+            device = "cpu" if self.device == "mps" else self.device
+            dtype = torch.float16 if device == 'cuda' else torch.float32
+            
+            caption_processor = Blip2Processor.from_pretrained(BLIP2_MODEL_ID)
+            caption_model = Blip2ForConditionalGeneration.from_pretrained(
+                BLIP2_MODEL_ID,
+                torch_dtype=dtype,
+                load_in_8bit=device == 'cuda'
+            ).to(device)
+            
+            self.taggers['caption'] = CaptionTagger(
+                model=caption_model,
+                processor=caption_processor,
+                device=self.device
+            )
+            logger.info("Caption tagger created successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize caption tagger: {e}")
+            raise
+            
+        # Initialize WD14 tagger
+        logger.info("Initializing WD14 tagger...")
+        try:
+            wd14_model = timm.create_model(
+                WD14_MODEL_ID,
+                pretrained=True
+            ).to('cpu')  # WD14 always uses CPU
+            wd14_model.eval()
+            
+            # Load tag definitions
+            tags_file = Path(WD14_TAGS_FILE)
+            if not tags_file.exists():
+                raise FileNotFoundError(f"Tags file not found: {tags_file}")
+            
+            tags_df = pd.read_csv(tags_file)
+            logger.info(f"Loaded {len(tags_df)} WD14 tags")
+            
+            self.taggers['wd14'] = WD14Tagger(
+                model=wd14_model,
+                tags_df=tags_df,
+                device=self.device,
+                confidence_threshold=self.config.default_config.wd14_confidence
+            )
+            logger.info("WD14 tagger created successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize WD14 tagger: {e}")
+            raise
+            
+        logger.info("All taggers initialized successfully")
     
     async def tag_image(self, 
                        image_path: Union[str, Path],
                        detection_type: str) -> Dict[str, List[TagResult]]:
-        """Run appropriate taggers for the detection type on an image.
-        
-        Args:
-            image_path: Path to the image file
-            detection_type: Type of detection (face, person, etc)
-            
-        Returns:
-            Combined dictionary of all tagger results
-        """
+        """Run appropriate taggers for the detection type on an image."""
         image_path = Path(image_path)
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
@@ -112,14 +172,17 @@ class TaggerPipeline:
         # Create tasks for enabled taggers
         tasks = []
         for name in type_config.enabled_taggers:
-            if name in self.taggers:
-                tagger = self.taggers[name]
-                # Apply type-specific configuration for WD14
-                if name == 'wd14':
-                    tagger.confidence_threshold = type_config.wd14_confidence
-                    tagger.category_filters = type_config.wd14_categories
-                    tagger.blacklist = type_config.wd14_blacklist
-                tasks.append(self._run_tagger(name, tagger, image_path))
+            if name not in self.taggers:
+                logger.warning(f"Tagger {name} not initialized, skipping")
+                continue
+                
+            tagger = self.taggers[name]
+            # Apply type-specific configuration for WD14
+            if name == 'wd14':
+                tagger.confidence_threshold = type_config.wd14_confidence
+                tagger.category_filters = type_config.wd14_categories
+                tagger.blacklist = type_config.wd14_blacklist
+            tasks.append(self._run_tagger(name, tagger, image_path))
         
         # Run enabled taggers in parallel
         results = await asyncio.gather(*tasks, return_exceptions=True)

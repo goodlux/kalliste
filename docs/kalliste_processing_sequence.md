@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     participant Client
     participant ImageProcessor
@@ -27,3 +28,5 @@ sequenceDiagram
     end
 
     ImageProcessor-->>Client: processed_images[]
+
+```
