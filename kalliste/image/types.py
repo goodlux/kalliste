@@ -23,50 +23,6 @@ class TagResult:
         return f"{self.category}:{self.label}({self.confidence:.2f})"
 
 @dataclass
-class Detection:
-    """Represents a detection result converted from detector Region"""
-    type: str  # "face", "person", etc.
-    bbox: Tuple[int, int, int, int]  # (x1, y1, x2, y2)
-    confidence: float
-    
-    def __post_init__(self):
-        """Validate detection attributes after initialization"""
-        # Validate bbox coordinates
-        x1, y1, x2, y2 = self.bbox
-        if x1 > x2 or y1 > y2:
-            logger.error(f"Invalid bounding box coordinates: {self.bbox}")
-            raise ValueError("Invalid bounding box: coordinates out of order")
-        if x1 < 0 or y1 < 0:
-            logger.warning(f"Bounding box has negative coordinates: {self.bbox}")
-            
-        # Validate confidence
-        if not 0 <= self.confidence <= 1:
-            logger.error(f"Invalid confidence value: {self.confidence}")
-            raise ValueError("Confidence must be between 0 and 1")
-            
-        # Log successful creation
-        logger.debug(f"Created Detection: type={self.type}, bbox={self.bbox}, confidence={self.confidence:.3f}")
-    
-    @classmethod
-    def from_region(cls, region) -> 'Detection':
-        """Convert a detector Region to a Detection"""
-        logger.debug(f"Converting region to Detection: {region}")
-        try:
-            detection = cls(
-                type=region.region_type,
-                bbox=(region.x1, region.y1, region.x2, region.y2),
-                confidence=region.confidence if region.confidence else 0.0
-            )
-            logger.debug(f"Successfully converted region to Detection: {detection}")
-            return detection
-        except AttributeError as e:
-            logger.error(f"Failed to convert region - missing attribute: {e}", exc_info=True)
-            raise ValueError(f"Invalid region format: {e}") from e
-        except Exception as e:
-            logger.error(f"Unexpected error converting region: {e}", exc_info=True)
-            raise
-
-@dataclass
 class KallisteTag:
     """Single Kalliste tag with metadata"""
     tag: str

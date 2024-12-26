@@ -19499,3 +19499,1337 @@ Model registry cleanup complete
 [red bold]Error during batch processing[/]
 [blue]Pipeline test complete[/]
 [red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+ExifTool error: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Error copying metadata: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Error processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Error processing crops for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 66, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Error processing /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 66, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Failed to process 3M2A2876.png
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 66, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Batch processing completed with 1 errors
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 66, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Failed to process batch 20180312_Photoshoot2
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 243, in copy_metadata_from_source
+    raise RuntimeError(f"ExifTool failed: {error_msg}")
+RuntimeError: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 56, in process
+    await self.copy_metadata_from_source()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 249, in copy_metadata_from_source
+    raise RuntimeError(f"Metadata copy failed: {e}") from e
+RuntimeError: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 82, in process_batch
+    await batch.process()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 66, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 118, in process_all
+    raise RuntimeError(
+RuntimeError: Failed to process 1 batch(es):
+Batch 20180312_Photoshoot2: Crop processing failed: Metadata copy failed: ExifTool failed: Error: Temporary file already exists: /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png_exiftool_tmp
+
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[red bold]Error during batch processing[/]
+[blue]Pipeline test complete[/]
+[red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Temp file issue on attempt 1, retrying...
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Error processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing crops for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process 3M2A2876.png
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing completed with 1 errors
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process batch 20180312_Photoshoot2
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 82, in process_batch
+    await batch.process()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 118, in process_all
+    raise RuntimeError(
+RuntimeError: Failed to process 1 batch(es):
+Batch 20180312_Photoshoot2: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[red bold]Error during batch processing[/]
+[blue]Pipeline test complete[/]
+[red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Temp file issue on attempt 1, retrying...
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Error processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing crops for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process 3M2A2876.png
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing completed with 1 errors
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process batch 20180312_Photoshoot2
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 82, in process_batch
+    await batch.process()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 66, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 118, in process_all
+    raise RuntimeError(
+RuntimeError: Failed to process 1 batch(es):
+Batch 20180312_Photoshoot2: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[red bold]Error during batch processing[/]
+[blue]Pipeline test complete[/]
+[red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running taggers for face crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Temp file issue on attempt 1, retrying...
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Cropped image /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png complete
+Error processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing crops for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 63, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Error processing /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 63, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process 3M2A2876.png
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 63, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing completed with 1 errors
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 63, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Failed to process batch 20180312_Photoshoot2
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 55, in process
+    await self._wait_for_file()
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 103, in _wait_for_file
+    raise RuntimeError(f"File {self.output_path} not ready after {max_retries} attempts")
+RuntimeError: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 82, in process_batch
+    await batch.process()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 75, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 44, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 63, in process
+    await asyncio.gather(*crop_tasks)
+  File "/Users/rob/repos/kalliste/kalliste/image/cropped_image.py", line 71, in process
+    raise RuntimeError(f"Crop processing failed: {e}") from e
+RuntimeError: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 118, in process_all
+    raise RuntimeError(
+RuntimeError: Failed to process 1 batch(es):
+Batch 20180312_Photoshoot2: Crop processing failed: File /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png not ready after 5 attempts
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[red bold]Error during batch processing[/]
+[blue]Pipeline test complete[/]
+[red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Original image /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png processing complete
+Successfully processed 1 images in batch 20180312_Photoshoot2
+Batch /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2 complete
+Completed batch: 20180312_Photoshoot2
+All batches processed successfully
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[green bold]All batches processed successfully![/]
+[blue]Pipeline test complete[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+Loading YOLO face model from /Users/rob/.cache/ultralytics/yolov8n-face.pt
+YOLO face model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Fusing face model...
+Face Model fused successfully
+Fusing main model...
+Main Model fused successfully
+Detection complete. Found 6 total regions
+Found 6 detections in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for face from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for face crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Starting crop processing for person from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Running taggers for person crop
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_face_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running caption tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running orientation tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Running wd14 tagger on /Users/rob/repos/kalliste/test_images_output/20180312_Photoshoot2/3M2A2876_person_crop.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing crop from /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Completed processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Original image /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png processing complete
+Successfully processed 1 images in batch 20180312_Photoshoot2
+Batch /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2 complete
+Completed batch: 20180312_Photoshoot2
+All batches processed successfully
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[green bold]All batches processed successfully![/]
+[blue]Pipeline test complete[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Failed to scan for batches
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 62, in scan_for_batches
+    self.batches.append(Batch(input_path=item, output_path=output_dir))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 19, in __init__
+    self.scan_for_images()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 30, in scan_for_images
+    self.original_images.append(OriginalImage(
+                                ^^^^^^^^^^^^^^
+TypeError: OriginalImage.__init__() missing 1 required positional argument: 'detection_config'
+[red bold]Failed to initialize BatchProcessor[/]
+[red bold]Pipeline test failed[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+YOLODetector initialized with 0 active classes
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Found 0 regions in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Error matching regions with EXIF data: could not convert string to float: ''
+Completed processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Original image /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png processing complete
+Successfully processed 1 images in batch 20180312_Photoshoot2
+Batch /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2 complete
+Completed batch: 20180312_Photoshoot2
+All batches processed successfully
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[green bold]All batches processed successfully![/]
+[blue]Pipeline test complete[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+YOLODetector initialized with 0 active classes
+Running detection on /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Found 0 regions in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Error matching regions with EXIF data: could not convert string to float: ''
+Completed processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Original image /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png processing complete
+Successfully processed 1 images in batch 20180312_Photoshoot2
+Batch /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2 complete
+Completed batch: 20180312_Photoshoot2
+All batches processed successfully
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[green bold]All batches processed successfully![/]
+[blue]Pipeline test complete[/]
+[blue]Starting pipeline test[/]
+Input directory: [cyan]/Users/rob/repos/kalliste/test_images_input[/]
+Output directory: [cyan]/Users/rob/repos/kalliste/test_images_output[/]
+[green]Initializing BatchProcessor[/]
+Initializing BatchProcessor with input_root=/Users/rob/repos/kalliste/test_images_input, output_root=/Users/rob/repos/kalliste/test_images_output
+Scanning for batches in /Users/rob/repos/kalliste/test_images_input
+Initializing Batch with input_path=/Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2, max_concurrent=3
+Scanning for images in /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2
+Found 1 images to process in batch 20180312_Photoshoot2
+Found 1 batches to process
+BatchProcessor created
+Initializing models
+Initializing BatchProcessor and model registry
+Starting model registry initialization
+Initializing tagger pipeline...
+Creating TaggerPipeline instance
+MPS device validated
+TaggerPipeline created with device: mps
+Starting tagger pipeline initialization
+Initializing orientation tagger...
+Creating OrientationTagger instance for device: mps
+Orientation tagger created successfully
+Initializing caption tagger...
+Creating CaptionTagger instance for device: mps
+Caption tagger created successfully
+Initializing WD14 tagger...
+Loading pretrained weights from Hugging Face hub (SmilingWolf/wd-vit-large-tagger-v3)
+[SmilingWolf/wd-vit-large-tagger-v3] Safe alternative available for 'pytorch_model.bin' (as 'model.safetensors'). Loading weights using safetensors.
+Loaded 10861 WD14 tags
+Creating WD14Tagger instance for device: mps
+WD14 tagger created successfully
+All taggers initialized successfully
+Tagger pipeline initialized successfully
+Initializing YOLO detector...
+Initializing YOLO detector
+Loading YOLO model from /Users/rob/.cache/ultralytics/yolov8n.pt
+YOLO model loaded successfully
+YOLODetector initialized with 1 active classes
+YOLO detector initialized successfully
+Model registry initialization complete
+BatchProcessor and model registry initialized successfully
+[green]BatchProcessor initialized successfully[/]
+[green]Starting batch processing[/]
+Starting batch processing
+Starting batch: 20180312_Photoshoot2
+Starting batch processing for 20180312_Photoshoot2 with 1 images
+Starting processing for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png
+Detection pipeline failed for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: 'DetectionPipeline' object has no attribute 'load_metadata'
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Detection failed for /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: 'DetectionPipeline' object has no attribute 'load_metadata'
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 38, in process
+    await self._run_detection_pipeline()
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Error processing /Users/rob/repos/kalliste/test_images_input/20180312_Photoshoot2/3M2A2876.png: 'DetectionPipeline' object has no attribute 'load_metadata'
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 38, in process
+    await self._run_detection_pipeline()
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Failed to process 3M2A2876.png
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 83, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 38, in process
+    await self._run_detection_pipeline()
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Batch processing completed with 1 errors
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 114, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 83, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 38, in process
+    await self._run_detection_pipeline()
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Failed to process batch 20180312_Photoshoot2
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 82, in process_batch
+    await batch.process()
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 114, in process
+    raise errors[0]
+  File "/Users/rob/repos/kalliste/kalliste/image/batch.py", line 83, in process_image
+    return await image.process()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 38, in process
+    await self._run_detection_pipeline()
+  File "/Users/rob/repos/kalliste/kalliste/image/original_image.py", line 87, in _run_detection_pipeline
+    self.detected_regions = await loop.run_in_executor(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/kalliste/lib/python3.11/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rob/repos/kalliste/kalliste/detectors/detection_pipeline.py", line 90, in detect
+    self.load_metadata(image_path)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'DetectionPipeline' object has no attribute 'load_metadata'
+Batch processing failed
+Traceback (most recent call last):
+  File "/Users/rob/repos/kalliste/kalliste/image/batch_processor.py", line 118, in process_all
+    raise RuntimeError(
+RuntimeError: Failed to process 1 batch(es):
+Batch 20180312_Photoshoot2: 'DetectionPipeline' object has no attribute 'load_metadata'
+Cleaning up model registry
+Starting model registry cleanup
+Model registry cleanup complete
+Model registry cleanup complete
+[red bold]Error during batch processing[/]
+[blue]Pipeline test complete[/]
+[red bold]Pipeline test failed[/]

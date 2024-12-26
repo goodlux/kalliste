@@ -4,36 +4,75 @@ from .original_image import OriginalImage
 from .types import ProcessingStatus
 import asyncio
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
 class Batch:
     def __init__(self, input_path: Path, output_path: Path, max_concurrent: int = 3):
         logger.info(f"Initializing Batch with input_path={input_path}, max_concurrent={max_concurrent}")
+        
+        # Validate paths
+        if not isinstance(input_path, Path):
+            raise TypeError(f"input_path must be a Path object, got {type(input_path)}")
+        if not isinstance(output_path, Path):
+            raise TypeError(f"output_path must be a Path object, got {type(output_path)}")
+        if not input_path.exists():
+            raise FileNotFoundError(f"Input path does not exist: {input_path}")
+        if not input_path.is_dir():
+            raise NotADirectoryError(f"Input path is not a directory: {input_path}")
+            
         self.input_path = input_path
         self.output_path = output_path
         self.original_images: List[OriginalImage] = []
         self.status = ProcessingStatus.PENDING
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
-        self.scan_for_images()
+        
+        try:
+            self.scan_for_images()
+        except Exception as e:
+            logger.error(f"Failed to scan for images in {input_path}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize batch: {str(e)}") from e
         
     def scan_for_images(self):
         """Find all images in batch folder"""
         logger.info(f"Scanning for images in {self.input_path}")
         image_count = 0
         
-        for extension in ['*.png', '*.jpg', '*.jpeg']:
-            logger.debug(f"Scanning for {extension} files")
-            for file in self.input_path.glob(extension):
-                logger.debug(f"Found image: {file}")
-                self.original_images.append(OriginalImage(
-                    input_path=file,
-                    output_path=self.output_path
-                ))
-                image_count += 1
+        try:
+            # Get list of supported extensions
+            extensions = ['*.png', '*.jpg', '*.jpeg']
+            
+            for extension in extensions:
+                logger.debug(f"Scanning for {extension} files")
+                matching_files = list(self.input_path.glob(extension))
+                
+                for file in matching_files:
+                    if not file.is_file():
+                        logger.warning(f"Skipping non-file: {file}")
+                        continue
+                        
+                    try:
+                        logger.debug(f"Found image: {file}")
+                        original_image = OriginalImage(
+                            input_path=file,
+                            output_path=self.output_path
+                        )
+                        self.original_images.append(original_image)
+                        image_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to create OriginalImage for {file}", exc_info=True)
+                        raise RuntimeError(f"Failed to initialize image {file}: {str(e)}") from e
                     
-        logger.info(f"Found {image_count} images to process in batch {self.input_path.name}")
+            if image_count == 0:
+                logger.warning(f"No valid images found in batch {self.input_path.name}")
+            else:
+                logger.info(f"Found {image_count} images to process in batch {self.input_path.name}")
+                
+        except Exception as e:
+            logger.error(f"Error scanning for images in {self.input_path}", exc_info=True)
+            raise RuntimeError(f"Failed to scan for images: {str(e)}") from e
                 
     async def process_image(self, image: OriginalImage):
         """Process a single image with semaphore control"""
