@@ -1,3 +1,4 @@
+"""DEPRECATED: Just leaving here in case there is anything useful to pull from this file """
 """Detection and tagging pipeline combining YOLO detection with image tagging."""
 
 import asyncio
@@ -14,17 +15,17 @@ from ..config import YOLO_PERSON_MODEL, YOLO_FACE_MODEL
 
 logger = logging.getLogger(__name__)
 
-class DetectionPipeline:
+class DetectionPipeline_BAK:
     """Combines detection and tagging into a single pipeline."""
     
     def __init__(self, 
-                 model: str = YOLO_PERSON_MODEL,
-                 face_model: Optional[str] = YOLO_FACE_MODEL,
+                 model: str = YOLO_PERSON_MODEL, # TODO: Remove, should be handled by detection_config
+                 face_model: Optional[str] = YOLO_FACE_MODEL, # TODO: Remove, should be handled by detection_config
                  detection_config: List[DetectionConfig] = None,
-                 device: Optional[str] = None):
+                 device: Optional[str] = None): # TODO: Remove, should be handled by detection_config
         """
         Initialize the detection pipeline.
-        
+        TODO: We need a reference to the original saved file location here. 
         Args:
             model: YOLO model name (defaults to config.YOLO_PERSON_MODEL)
             face_model: Optional face detection model (defaults to config.YOLO_FACE_MODEL)
@@ -134,6 +135,8 @@ class DetectionPipeline:
             'kalliste_metadata': kalliste_metadata
         }
     
+
+    # TODO: This is the entry point for the detection pipeline. This could be renamed "create" or just make it clear that this is the main function.
     async def process_image(self, 
                           image_path: Path,
                           output_dir: Path,

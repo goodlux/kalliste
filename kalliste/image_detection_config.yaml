@@ -1,0 +1,24 @@
+detection:
+  person:
+    model:
+      model specifcation here
+    tagger:
+      orientation
+      wd14
+      caption
+  face:
+    model:
+      model specfication here.
+    tagger:
+      wd14
+      caption
+
+
+
+  
+
+
+
+
+
+      

@@ -38,7 +38,8 @@ class RegionProcessor:
         """Expand bounding box to match target dimensions while maintaining aspect ratio."""
         x1, y1, x2, y2 = bbox.x1, bbox.y1, bbox.x2, bbox.y2
         crop_width, crop_height = x2 - x1, y2 - y1
-        
+        # TODO: Use utils.expand_region here???
+
         # Apply type-specific padding before SDXL ratio adjustment
         if region_type.lower() == 'face':
             # Faces need extra padding to include more head/hair/neck context

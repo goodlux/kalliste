@@ -2,200 +2,207 @@
 
 ## Overview
 
-Kalliste is a batch image processing system designed to detect, crop, and tag regions of interest in images. The system uses a combination of YOLO-based detection and various ML models for tagging and classification.
+Kalliste is a batch image processing system designed to detect, crop, and tag regions of interest in images, optimizing them for use with Stable Diffusion XL (SDXL). The system uses YOLO-based detection, ML-based tagging, and sophisticated region processing to create high-quality training data.
+
+## Core Processing Flow
 
 ```mermaid
 flowchart TD
-    BP[BatchProcessor] --> MR[ModelRegistry]
-    MR --> YD[YOLODetector]
-    MR --> TP[TaggerPipeline]
-    BP --> B[Batch]
-    B --> OI[OriginalImage]
-    OI --> CI[CroppedImage]
-    CI --> TP
-    
-    subgraph TaggerPipeline
-        TP --> OT[OrientationTagger]
-        TP --> CT[CaptionTagger]
-        TP --> WT[WD14Tagger]
+    subgraph Initialization
+        BP[BatchProcessor] --> MR[ModelRegistry]
+        MR --> |"Load & Cache Models"| Models
     end
     
-    subgraph MetadataFlow
-        OI -- Metadata --> CI
-        OI -- Initial Tags --> CI
-        CI -- New Tags --> CI
+    subgraph Processing Flow
+        BP --> B[Batch]
+        B --> OI[OriginalImage]
+        OI --> |"Run Detection"| DP[DetectionPipeline]
+        DP --> |"Valid Detections"| OI
+        OI --> |"Spawn for each detection"| CI[CroppedImage]
+        CI --> |"Use"| RP[RegionProcessor]
+        CI --> |"Use"| CP[CropProcessor]
+        CI --> |"Complete"| OI
+        OI --> |"All crops done"| B
+    end
+
+    subgraph CroppedImage Tasks
+        CI --> Save[Save Cropped Image]
+        Save --> Tag[Run Taggers]
+        Tag --> Meta[Copy & Update Metadata]
+        Meta --> Notify[Notify Completion]
     end
 ```
 
-## Core Components
+## Component Responsibilities
 
 ### BatchProcessor
-The primary orchestrator that:
-- Scans input directories for batches of images
-- Manages the initialization of all models through ModelRegistry
-- Coordinates the processing of batches
-- Handles cleanup and resource management
+- Initializes the processing pipeline
+- Manages ModelRegistry initialization
+- Processes input directories sequentially
+- Creates Batch instances as needed
 
 ### ModelRegistry
-Central manager for all ML models that:
-- Initializes models once at startup
-- Provides access to initialized models throughout the system
-- Ensures models are properly shared and reused
-- Handles model cleanup on shutdown
+- Loads and caches ML models at startup
+- Provides model access throughout processing
+- NOT an orchestrator - purely a model provider
+- Handles:
+  - YOLO detection models
+  - BLIP2 captioning
+  - WD14 tagging
+  - Orientation classification
 
-### YOLODetector
-Handles detection of regions of interest:
-- Uses YOLOv8 for primary detection
-- Supports face and person detection
-- Configurable confidence thresholds and aspect ratios
-- Outputs standardized Detection objects
+### Batch
+- Legacy component managing folder-level processing
+- Creates OriginalImage instances for each image
+- Tracks completion of image processing
 
-### TaggerPipeline
-Coordinates multiple tagging models:
-- Manages tagger initialization and lifecycle
-- Routes images to appropriate taggers based on detection type
-- Combines and standardizes tagger outputs
-- Handles type-specific configurations (e.g., face vs person tagging requirements)
+### OriginalImage
+- Manages the processing lifecycle of a single image
+- Initiates DetectionPipeline processing
+- Creates CroppedImage instances for valid detections
+- Tracks completion of all crops
+- Notifies Batch upon completion
 
-### Individual Taggers
+### CroppedImage
+- Manages individual detection processing
+- Utilizes RegionProcessor and CropProcessor services
+- Responsibilities:
+  1. Save cropped image
+  2. Run ML taggers
+  3. Copy metadata from original
+  4. Inject new tags into metadata
+  5. Notify completion and cleanup
 
-#### OrientationTagger
-- Determines image orientation (portrait, landscape, etc.)
-- Uses custom model for orientation detection
-- Outputs confidence scores for each orientation possibility
+### Supporting Services
 
-#### CaptionTagger
-- Generates natural language descriptions of images
-- Uses BLIP2 model for captioning
-- Handles device-specific optimizations (CPU/MPS/CUDA)
+#### DetectionPipeline
+- Performs initial person/face detection
+- Validates basic detection confidence thresholds
+- Returns valid detections to OriginalImage
 
-#### WD14Tagger
-- General purpose image tagging
-- Large vocabulary of potential tags
-- Category filtering and confidence thresholds
-- Content safety filtering
+#### RegionProcessor
+- Service used by CroppedImage
+- Processes regions to meet SDXL requirements
+- Applies type-specific padding:
+  - Faces: 40% horizontal, 50% vertical
+  - Persons: 15% horizontal, 10% vertical
+- Ensures SDXL aspect ratio compliance
+- Validates minimum size requirements
 
-## Image Processing Flow
+#### CropProcessor
+- Service used by CroppedImage
+- Handles actual image cropping operations
+- Manages file naming and storage
+- Creates both full-res and SDXL versions
 
-```mermaid
-sequenceDiagram
-    participant BP as BatchProcessor
-    participant B as Batch
-    participant OI as OriginalImage
-    participant YD as YOLODetector
-    participant CI as CroppedImage
-    participant TP as TaggerPipeline
-    
-    BP->>B: process()
-    B->>OI: process()
-    OI->>YD: detect_regions()
-    YD-->>OI: detections
-    
-    Note over OI: Creates initial Kalliste tags
-    
-    loop For each detection
-        OI->>CI: create(with detection & parent_tags)
-        
-        Note over CI: Crops and saves image
-        
-        CI->>TP: tag_image()
-        TP-->>CI: tag_results
-        
-        Note over CI: Inherits metadata from original
-        Note over CI: Adds new Kalliste tags
-    end
+## SDXL Requirements
+
+Standard SDXL dimensions and ratios:
+```python
+SDXL_DIMENSIONS = [
+    ((1024, 1024), (1, 1)),      # Square
+    ((1152, 896), (9, 7)),       # Landscape
+    ((896, 1152), (7, 9)),       # Portrait
+    ((1216, 832), (19, 13)),     # Landscape
+    ((832, 1216), (13, 19)),     # Portrait
+    ((1344, 768), (7, 4)),       # Landscape
+    ((768, 1344), (4, 7)),       # Portrait
+    ((1536, 640), (12, 5)),      # Landscape
+    ((640, 1536), (5, 12))       # Portrait (iPhone)
+]
+```
+- All crops must meet minimum dimensions
+- Aspect ratios must match SDXL standards
+- Padding must maintain subject context
+
+## File Organization
+
+### Directory Structure
+```
+output_dir/
+├── full_res/
+│   └── original_face_0_crop.png
+│   └── original_person_0_crop.png
+├── sdxl/
+│   └── original_face_0_crop_sdxl.png
+│   └── original_person_0_crop_sdxl.png
 ```
 
-### Metadata and Tag Flow
-
-1. OriginalImage Processing:
-   - Loads image and runs detections
-   - Creates initial Kalliste tags for the image
-   - Spawns CroppedImage instances with:
-     - Reference to original file
-     - Initial tag set
-     - Detection information
-
-2. CroppedImage Processing:
-   - Creates crop using detection bounds
-   - Saves cropped image to disk
-   - Runs taggers on cropped image
-   - Copies metadata from original
-   - Inherits parent tags
-   - Adds new tags from:
-     - Cropping operation
-     - Tagger results
-
-## Model Loading Strategy
-
-Models are loaded once at startup through ModelRegistry:
-1. YOLO models for detection
-2. Orientation classification model
-3. BLIP2 model for captioning
-4. WD14 model for general tagging
-
-Each model is:
-- Loaded into appropriate device (CPU/MPS/CUDA)
-- Initialized with optimal settings for the device
-- Shared across all processing instances
-- Properly cleaned up on shutdown
-
-## Device Handling
-
-The system handles multiple compute devices:
-- CUDA for NVIDIA GPUs
-- MPS for Apple Silicon
-- CPU fallback for compatibility
-
-Device-specific optimizations:
-- WD14 always runs on CPU
-- BLIP2 uses 8-bit quantization on CUDA
-- MPS compatibility mode for certain operations
+### Naming Convention
+- Format: `{original_filename}_{type}_{number}_crop.png`
+- Examples:
+  ```
+  photo_face_0_crop.png
+  photo_face_1_crop.png
+  photo_person_0_crop.png
+  ```
+- SDXL versions append "_sdxl"
 
 ## Metadata Handling
 
-Images preserve metadata through processing:
-- EXIF data copied from originals to crops
-- Kalliste-specific tags added via XMP namespace
-- Tag hierarchy and organization preserved
-- Original camera data maintained
+### Original Metadata Preservation
+- EXIF data copying
+- ICC profile preservation
+- Original camera data retention
 
-### Kalliste Tag Format
+### Kalliste Metadata Structure
 ```xml
 <Kalliste:Tag>category:value</Kalliste:Tag>
 <Kalliste:TagSource>source_name</Kalliste:TagSource>
 <Kalliste:TagConfidence>0.95</Kalliste:TagConfidence>
 ```
 
-### ExifTool Command Structure
-Commands must follow this order:
-1. exiftool command
-2. -config option (must be first)
-3. -overwrite_original
-4. Other options
-5. File paths
+### Processing Tags
+- Detection information
+- Crop specifications
+- ML model outputs
+- SDXL optimization parameters
+
+## Error Handling and Logging
+
+### Validation Points
+- Pre-detection image validation
+- Post-detection size requirements
+- SDXL aspect ratio compliance
+- Metadata integrity checks
+
+### Logging Hierarchy
+- Component-level logging
+- Processing stage tracking
+- Error reporting with context
+- Performance metrics
+
+### Recovery Strategies
+- Partial batch processing
+- Individual image retry logic
+- Graceful degradation options
 
 ## Configuration System
 
-Flexible configuration at multiple levels:
-- Global settings in config.py
-- Per-model configurations
-- Type-specific tagger settings
-- Runtime adjustable parameters
+### Global Settings
+- Model paths and configurations
+- Processing thresholds
+- Device preferences
+- Output specifications
 
-## Error Handling
+### Per-Type Configurations
+- Face-specific settings
+- Person-specific settings
+- Type-specific ML configurations
 
-Robust error handling throughout:
-- Graceful degradation on tagger failures
-- Batch-level error recovery
-- Detailed logging and error reporting
-- Resource cleanup on failures
+## Development Notes
 
-## Logging
+### Current Process Flow
+1. Original image stays in input directory
+2. For each valid detection:
+   - Create full-resolution crop
+   - Save with original metadata
+   - Run ML taggers
+   - Create SDXL version
+   - Add Kalliste metadata
 
-Comprehensive logging system:
-- Hierarchical loggers matching component structure
-- Debug-level details for development
-- Info-level progress reporting
-- Error details with tracebacks
-- Rich console formatting
+### Critical Requirements
+1. Size validation before processing
+2. Unique filename generation
+3. Proper SDXL ratio matching
+4. Complete metadata preservation
