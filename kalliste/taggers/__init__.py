@@ -1,17 +1,15 @@
 """Kalliste image tagging system."""
 
-from .base_tagger import BaseTagger, TagResult, get_default_device
+from .base_tagger import BaseTagger
 from .caption_tagger import CaptionTagger
-from .wd14_tagger import WD14Tagger
 from .orientation_tagger import OrientationTagger
-from .tagger_pipeline import TaggerPipeline
+from .wd14_tagger import WD14Tagger
+from ..types import TagResult
 
 __all__ = [
     'BaseTagger',
-    'TagResult',
-    'get_default_device',
     'CaptionTagger',
+    'OrientationTagger', 
     'WD14Tagger',
-    'OrientationTagger',
-    'TaggerPipeline'
+    'TagResult'
 ]
