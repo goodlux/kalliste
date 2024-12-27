@@ -63,3 +63,26 @@ class Batch:
         except Exception as e:
             logger.error(f"Error scanning for images", exc_info=True)
             raise
+
+    async def process(self):
+        """Process all images in the batch."""
+        logger.info(f"Processing batch: {self.input_path.name}")
+        
+        # Scan for images if not already done
+        if not self.images:
+            self.scan_for_images()
+            
+        if not self.images:
+            logger.warning("No images to process")
+            return
+            
+        # Process each image
+        for image in self.images:
+            try:
+                logger.info(f"Processing image: {image.source_path.name}")
+                await image.process()
+            except Exception as e:
+                logger.error(f"Failed to process image {image.source_path}", exc_info=True)
+                raise  # Let the batch processor handle the error
+                
+        logger.info(f"Completed processing batch: {self.input_path.name}")
