@@ -68,20 +68,17 @@ class TaggerPipeline:
         for tagger_name in needed_taggers - set(self.taggers.keys()):
             if tagger_name == 'wd14':
                 self.taggers['wd14'] = WD14Tagger(
-                    confidence_threshold=self.config['tagger']['wd14']['confidence'],
-                    blacklist=self.config['tagger']['wd14'].get('blacklist', [])
+                    config=self.config  # Pass full config
                 )
             elif tagger_name == 'caption':
                 self.taggers['caption'] = CaptionTagger(
-                    max_length=self.config['tagger']['caption']['max_length'],
-                    temperature=self.config['tagger']['caption']['temperature'],
-                    repetition_penalty=self.config['tagger']['caption']['repetition_penalty']
+                    config=self.config  # Pass full config
                 )
             elif tagger_name == 'orientation':
                 self.taggers['orientation'] = OrientationTagger(
-                    confidence_threshold=self.config['tagger']['orientation']['confidence']
+                    config=self.config  # Pass full config
                 )
-    
+        
     async def tag_image(self, image_path: Path, region_type: str) -> Dict[str, List[TagResult]]:
         """Run configured taggers for this region type.
         

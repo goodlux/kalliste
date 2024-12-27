@@ -82,6 +82,33 @@ class CroppedImage:
             logger.error(f"Failed to process cropped image: {e}", exc_info=True)
             raise
 
+    async def _run_taggers(self, image_path: Path):
+        """Run configured taggers and store results."""
+        try:
+            # Run taggers
+            tag_results = await self.tagger_pipeline.tag_image(
+                image_path=image_path,
+                region_type=self.region.region_type
+            )
+            
+            # Process and store tag results
+            for tagger_name, results in tag_results.items():
+                for tag in results:
+                    if isinstance(tag, dict):  # TagResult object
+                        self.kalliste_tags.append({
+                            'label': tag['label'],
+                            'confidence': tag.get('confidence'),
+                            'category': tag.get('category'),
+                            'tagger': tagger_name
+                        })
+                        
+            logger.info(f"Generated {len(self.kalliste_tags)} tags for {image_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to run taggers: {e}", exc_info=True)
+            # We might want to continue processing even if tagging fails
+            return []
+
     def _crop_resize_and_save(self) -> Path:
         """Crop region, resize to SDXL dimensions, and save."""
         with Image.open(self.source_path) as img:
@@ -92,7 +119,8 @@ class CroppedImage:
             ))
             
             # Generate output filename
-            filename = f"{self.region.region_type}_{uuid.uuid4()}.png"
+            original_name = self.source_path.stem  # Gets filename without extension
+            filename = f"{original_name}_{self.region.region_type}_{uuid.uuid4()}.png"
             final_path = self.output_dir / filename
             
             # Resize and save using SDXLResizer

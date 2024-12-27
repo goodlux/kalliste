@@ -1,12 +1,12 @@
 """Detection pipeline for coordinating different detectors and configurations."""
 from pathlib import Path
-from typing import List, Dict, Optional, Any, Tuple, Set
+from typing import List, Dict, Optional
 import logging
 from dataclasses import dataclass
 
-from .base import DetectionConfig, Region
-from ..model.model_registry import ModelRegistry
-from ..config import DETECTION_CONFIG
+from .base import Region
+from .yolo_detector import YOLODetector
+from .yolo_classes import YOLO_CLASSES, CLASS_GROUPS
 
 logger = logging.getLogger(__name__)
 
@@ -32,35 +32,48 @@ class DetectionPipeline:
             raise FileNotFoundError(f"Image not found: {image_path}")
             
         try:
-            # Get detector from registry with device preference
-            detector = ModelRegistry.get_detector(
-                device=config.get('device', {}).get('preferred', 'mps')
-            )
-            
             # Get detection types from config
-            detection_types = list(config.keys() - {'target', 'detector', 'tagger', 'device'})
+            detection_types = list(config.keys() - {'target', 'device'})
+            logger.debug(f"Detection types from config: {detection_types}")
             
+            # Check if detection types are YOLO-supported
+            yolo_types = []
+            for det_type in detection_types:
+                # Check direct classes
+                if det_type in YOLO_CLASSES:
+                    yolo_types.append(det_type)
+                # Check group classes
+                elif det_type in CLASS_GROUPS:
+                    yolo_types.extend(CLASS_GROUPS[det_type])
+                    
+            if not yolo_types:
+                raise ValueError(f"No supported detection types found in: {detection_types}")
+                
             # Get detector settings for each type
             detector_config = {
                 dtype: {
-                    'confidence': config['detector'][dtype]['confidence'],
-                    'iou_threshold': config['detector'][dtype]['iou_threshold']
+                    'confidence': config[dtype].get('confidence', 0.5),
+                    'iou_threshold': config[dtype].get('iou_threshold', 0.45)
                 }
-                for dtype in detection_types
+                for dtype in yolo_types
             }
+            logger.debug(f"Detector config: {detector_config}")
+            
+            # Initialize YOLO detector
+            detector = YOLODetector(config)
             
             # Run detection with config
             regions = detector.detect(
                 image_path=image_path,
-                detection_types=detection_types,
+                detection_types=yolo_types,
                 config=detector_config
             )
             
             return DetectionResult(
                 regions=regions,
-                detector_used="yolo",
-                model_identifier="yolov11x",
-                detection_types=detection_types
+                detector_used='yolo',
+                model_identifier='yolov11x',
+                detection_types=yolo_types
             )
             
         except Exception as e:

@@ -5,42 +5,13 @@ from rich.console import Console
 from rich.traceback import Traceback
 from rich.panel import Panel
 from rich.text import Text
+from rich.logging import RichHandler as BaseRichHandler
 import logging
 
 # Create a rich console for error display
 console = Console(stderr=True)
 
-# Configure root logger with file and line numbers
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    handlers=[RichHandler()]  # Add our handler by default
-)
-
-def format_error(e: Exception, title: Optional[str] = None) -> None:
-    """Format an exception with rich styling."""
-    panel_title = title or f"[red bold]{e.__class__.__name__}[/]"
-    tb = Traceback.from_exception(
-        type(e),
-        e,
-        e.__traceback__,
-        show_locals=True,
-        width=100,
-        extra_lines=3,
-        theme="monokai",
-        word_wrap=True
-    )
-    error_text = Text(str(e))
-    error_panel = Panel(
-        error_text,
-        title=panel_title,
-        border_style="red",
-        padding=(1, 2)
-    )
-    console.print(error_panel)
-    console.print(tb)
-
-class RichHandler(logging.Handler):
+class RichHandler(BaseRichHandler):
     """A logging handler that uses rich for output."""
     
     def __init__(self, level: int = logging.NOTSET):
@@ -74,3 +45,33 @@ class RichHandler(logging.Handler):
                 
         except Exception:
             self.handleError(record)
+
+def format_error(e: Exception, title: Optional[str] = None) -> None:
+    """Format an exception with rich styling."""
+    panel_title = title or f"[red bold]{e.__class__.__name__}[/]"
+    tb = Traceback.from_exception(
+        type(e),
+        e,
+        e.__traceback__,
+        show_locals=True,
+        width=100,
+        extra_lines=3,
+        theme="monokai",
+        word_wrap=True
+    )
+    error_text = Text(str(e))
+    error_panel = Panel(
+        error_text,
+        title=panel_title,
+        border_style="red",
+        padding=(1, 2)
+    )
+    console.print(error_panel)
+    console.print(tb)
+
+# Configure root logger with file and line numbers
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    handlers=[RichHandler()]  # Add our handler by default
+)

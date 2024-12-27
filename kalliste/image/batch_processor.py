@@ -16,7 +16,7 @@ class BatchProcessor:
         self.config = self._load_default_config() if config is None else config
         self.batches: List[Batch] = []
         self._initialized = False
-        self.status = ProcessingStatus.IDLE
+        self.status = ProcessingStatus.PENDING
         
     def _load_default_config(self) -> Dict:
         """Load default detection config."""
@@ -38,6 +38,10 @@ class BatchProcessor:
         logger.info(f"Initializing BatchProcessor with input_root={self.input_root}, output_root={self.output_root}")
         
         try:
+            # Initialize model registry first
+            logger.info("Initializing model registry")
+            await ModelRegistry.initialize()
+            
             # Scan for batches (subdirectories)
             logger.info(f"Scanning for batches in {self.input_root}")
             
