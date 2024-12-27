@@ -6,6 +6,7 @@ import logging
 from PIL import Image, UnidentifiedImageError
 from ..types import TagResult
 
+
 logger = logging.getLogger(__name__)
 
 class BaseTagger(ABC):
