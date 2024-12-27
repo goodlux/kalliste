@@ -47,7 +47,7 @@ class Batch:
                     original_image = OriginalImage(
                         source_path=file,
                         output_dir=self.output_path,
-                        config=self.config  # Use merged config
+                        config=self.config
                     )
                     self.images.append(original_image)
                     
