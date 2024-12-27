@@ -1,21 +1,17 @@
 """Pipeline for managing and running multiple image taggers."""
-
 from typing import Dict, List, Optional, Type, Union, Set
 import asyncio
 from pathlib import Path
 import logging
 from dataclasses import dataclass, field
-import torch
 from transformers import (
     AutoModelForImageClassification, 
     AutoProcessor,
     Blip2Processor, 
     Blip2ForConditionalGeneration
 )
-import timm
-import pandas as pd
 
-from .base_tagger import BaseTagger, get_default_device
+from .base_tagger import BaseTagger
 from ..types import TagResult
 from .caption_tagger import CaptionTagger
 from .wd14_tagger import WD14Tagger
@@ -23,11 +19,8 @@ from .orientation_tagger import OrientationTagger
 from ..config import (
     ORIENTATION_MODEL_ID,
     BLIP2_MODEL_ID,
-    WD14_MODEL_ID,
-    WD14_TAGS_FILE
+    WD14_MODEL_ID
 )
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +29,12 @@ class TaggerTypeConfig:
     """Configuration for a specific detector type (face, person, etc)"""
     enabled_taggers: Set[str]
     wd14_confidence: float = 0.35
-    wd14_categories: Optional[List[str]] = None
-    wd14_blacklist: Optional[set] = None
+    wd14_max_tags: int = 50
+    wd14_min_tags: int = 5
 
 @dataclass
 class PipelineConfig:
     """Configuration for tagger pipeline."""
-    device: Optional[str] = None
     default_config: TaggerTypeConfig = field(default_factory=lambda: TaggerTypeConfig(
         enabled_taggers={'caption', 'wd14', 'orientation'}
     ))
@@ -56,7 +48,11 @@ class TaggerPipeline:
     """Pipeline for managing and running multiple image taggers."""
     
     def __init__(self, config: Dict):
-        """Initialize tagger pipeline with configuration."""
+        """Initialize tagger pipeline with configuration.
+        
+        Args:
+            config: Configuration dictionary from detection_config.yaml
+        """
         self.config = config
         self.taggers = {}
         
@@ -66,19 +62,32 @@ class TaggerPipeline:
         needed_taggers = set(self.config[region_type])
         
         for tagger_name in needed_taggers - set(self.taggers.keys()):
-            if tagger_name == 'wd14':
-                self.taggers['wd14'] = WD14Tagger(
-                    config=self.config  # Pass full config
-                )
-            elif tagger_name == 'caption':
-                self.taggers['caption'] = CaptionTagger(
-                    config=self.config  # Pass full config
-                )
-            elif tagger_name == 'orientation':
-                self.taggers['orientation'] = OrientationTagger(
-                    config=self.config  # Pass full config
-                )
-        
+            try:
+                if tagger_name == 'wd14':
+                    model = AutoModelForImageClassification.from_pretrained(WD14_MODEL_ID)
+                    self.taggers['wd14'] = WD14Tagger(
+                        model=model,
+                        config=self.config
+                    )
+                    
+                elif tagger_name == 'caption':
+                    model = Blip2ForConditionalGeneration.from_pretrained(BLIP2_MODEL_ID)
+                    self.taggers['caption'] = CaptionTagger(
+                        model=model,
+                        config=self.config
+                    )
+                    
+                elif tagger_name == 'orientation':
+                    model = AutoModelForImageClassification.from_pretrained(ORIENTATION_MODEL_ID)
+                    self.taggers['orientation'] = OrientationTagger(
+                        model=model,
+                        config=self.config
+                    )
+                    
+            except Exception as e:
+                logger.error(f"Failed to initialize {tagger_name} tagger: {e}", exc_info=True)
+                raise RuntimeError(f"Tagger initialization failed: {e}")
+    
     async def tag_image(self, image_path: Path, region_type: str) -> Dict[str, List[TagResult]]:
         """Run configured taggers for this region type.
         
@@ -88,6 +97,10 @@ class TaggerPipeline:
             
         Returns:
             Dictionary mapping tagger names to their results
+            
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            RuntimeError: If tagging fails
         """
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
