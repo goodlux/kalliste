@@ -1,43 +1,68 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 from .batch import Batch
-from .types import ProcessingStatus
-from .model_registry import ModelRegistry
+from ..types import ProcessingStatus
+from ..model.model_registry import ModelRegistry
 import asyncio
 import logging
-import traceback
+import yaml
 
 logger = logging.getLogger(__name__)
 
 class BatchProcessor:
-    def __init__(self, input_root: Path, output_root: Path):
-        if not input_root.exists():
-            raise FileNotFoundError(f"Input directory does not exist: {input_root}")
-            
-        logger.info(f"Initializing BatchProcessor with input_root={input_root}, output_root={output_root}")
+    def __init__(self, input_root: Path, output_root: Path, config: Optional[Dict] = None):
         self.input_root = input_root
         self.output_root = output_root
+        self.config = self._load_default_config() if config is None else config
         self.batches: List[Batch] = []
-        self.status = ProcessingStatus.PENDING
         self._initialized = False
-        self.scan_for_batches()
-
-    async def initialize(self):
-        """Initialize models asynchronously"""
-        if self._initialized:
-            logger.debug("BatchProcessor already initialized")
-            return
-
-        logger.info("Initializing BatchProcessor and model registry")
+        self.status = ProcessingStatus.IDLE
+        
+    def _load_default_config(self) -> Dict:
+        """Load default detection config."""
         try:
-            await ModelRegistry.initialize()
-            self._initialized = True
-            logger.info("BatchProcessor and model registry initialized successfully")
-        except Exception as e:
-            self.status = ProcessingStatus.ERROR
-            logger.error("Model registry initialization failed", exc_info=True)
-            raise RuntimeError("Failed to initialize BatchProcessor") from e
+            config_path = Path(__file__).parent.parent / 'default_detection_config.yaml'
+            logger.info(f"Loading default config from: {config_path}")
             
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+                logger.debug("Default config loaded successfully")
+                return config
+                
+        except Exception as e:
+            logger.error(f"Failed to load default config from {config_path}", exc_info=True)
+            raise RuntimeError(f"Cannot load default config: {str(e)}") from e
+        
+    async def initialize(self):
+        """Initialize processor and scan for batches."""
+        logger.info(f"Initializing BatchProcessor with input_root={self.input_root}, output_root={self.output_root}")
+        
+        try:
+            # Scan for batches (subdirectories)
+            logger.info(f"Scanning for batches in {self.input_root}")
+            
+            for item in self.input_root.iterdir():
+                if item.is_dir():
+                    batch_output = self.output_root / item.name
+                    batch_output.mkdir(parents=True, exist_ok=True)
+                    
+                    # Pass default config to Batch
+                    batch = Batch(
+                        input_path=item,
+                        output_path=batch_output,
+                        default_config=self.config  # Pass as default_config
+                    )
+                    self.batches.append(batch)
+                    
+            if not self.batches:
+                logger.warning("No batch directories found")
+                
+            self._initialized = True
+                
+        except Exception as e:
+            logger.error("Failed to initialize batches", exc_info=True)
+            raise
+
     def create_output_directory(self, output_dir: Path) -> None:
         """Create output directory, handling errors gracefully"""
         try:
@@ -87,12 +112,10 @@ class BatchProcessor:
             return e
                 
     async def process_all(self):
-        """Process batches sequentially, with improved error handling"""
-        # Check initialization instead of forcing it
+        """Process all images in input directory."""
         if not self._initialized:
-            logger.warning("BatchProcessor not initialized. Call initialize() first.")
-            return
-        
+            await self.initialize()
+
         logger.info("Starting batch processing")
         self.status = ProcessingStatus.PROCESSING
         
@@ -140,3 +163,9 @@ class BatchProcessor:
     async def on_batch_complete(self, batch_path: Path):
         """Called when a batch signals completion"""
         logger.info(f"Batch {batch_path} processing complete")
+
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self._initialized:
+            await ModelRegistry.cleanup()
+            self._initialized = False

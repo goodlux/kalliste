@@ -1,0 +1,67 @@
+# Target platform configuration
+target: 
+  platform: "SDXL"  # Options: SDXL, SD1.5, Custom
+  min_size: [384, 384]  # Minimum size for detection regions
+  max_size: [1024, 1024]  # Maximum size for detection regions
+
+# Detector configuration
+detector:
+  person:
+    confidence: 0.5     # Range: 0.0-1.0, Higher = more selective
+    iou_threshold: 0.45  # Range: 0.0-1.0, Higher = fewer overlapping detections
+    min_size: 1000      # Minimum area in pixels
+  face:
+    confidence: 0.6
+    iou_threshold: 0.35
+    min_size: 500
+  animals:
+    confidence: 0.4
+    iou_threshold: 0.4
+    min_size: 800
+
+# Tagger configuration
+tagger:
+  wd14:
+    confidence: 0.35            # Range: 0.0-1.0
+    blacklist: ['nsfw', 'explicit']  # Tags to always exclude
+    category_filters:           # Only include tags from these categories
+      - clothing
+      - pose
+      - action
+    max_tags: 50               # Maximum number of tags to return
+
+  caption:
+    max_length: 100            # Maximum caption length in tokens
+    min_length: 10             # Minimum caption length in tokens
+    temperature: 1.0           # Range: 0.0-2.0, Higher = more creative
+    repetition_penalty: 1.5    # Range: 1.0-2.0, Higher = less repetition
+    num_beams: 4               # Range: 1-8, Higher = better quality but slower
+    language: "en"             # Options: en, ja, zh, ko, fr, de, es
+    style: "detailed"          # Options: detailed, simple, artistic
+
+  orientation:
+    confidence: 0.8            # Range: 0.0-1.0
+    angles: [0, 90, 180, 270]  # Allowed rotation angles
+
+# Device configuration
+device:
+  preferred: "auto"  # Options: auto, cuda, cpu, mps
+  fallback: "cpu"   # Fallback device if preferred not available
+
+# Detection-tagger mapping
+person:
+  - orientation
+  - wd14
+  - caption
+
+face:
+  - wd14
+  - caption
+
+animals:
+  - caption
+  - wd14
+
+# Note: This is an example configuration showing all possible settings.
+# The actual default_detection_config.yaml uses a simpler subset of these settings.
+# Each batch can override any of these settings in its detection_config.yaml 

@@ -1,0 +1,40 @@
+# Target platform configuration
+target: 
+  platform: "SDXL"
+  min_size: [384, 384]
+
+# Detector configuration
+detector:
+  person:
+    confidence: 0.5
+    iou_threshold: 0.45
+  face:
+    confidence: 0.6
+    iou_threshold: 0.35
+
+# Tagger configuration
+tagger:
+  wd14:
+    confidence: 0.35
+    blacklist: ['nsfw', 'explicit']
+  caption:
+    max_length: 100
+    temperature: 1.0
+    repetition_penalty: 1.5
+  orientation:
+    confidence: 0.8
+
+# Device configuration
+device:
+  preferred: "mps"  # For Mac users
+  fallback: "cpu"   # Always good to have a fallback
+
+# Detection-tagger mapping
+person:
+  - orientation
+  - wd14
+  - caption
+
+face:
+  - wd14
+  - caption 

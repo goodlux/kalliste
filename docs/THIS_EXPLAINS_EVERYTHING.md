@@ -1,5 +1,8 @@
 # Kalliste System Architecture Documentation
 
+
+PLEASE READ docs/MODEL_WEIGHTS.md. We let yolo manage it own cache. DON'T MESS WITH THAT.
+
 ## Overview
 
 Kalliste is a batch image processing system designed to detect, crop, and tag regions of interest in images, optimizing them for use with Stable Diffusion XL (SDXL). The system uses YOLO-based detection, ML-based tagging, and sophisticated region processing to create high-quality training data.

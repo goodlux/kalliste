@@ -10,17 +10,16 @@ import logging
 # Create a rich console for error display
 console = Console(stderr=True)
 
+# Configure root logger with file and line numbers
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    handlers=[RichHandler()]  # Add our handler by default
+)
+
 def format_error(e: Exception, title: Optional[str] = None) -> None:
-    """Format an exception with rich styling.
-    
-    Args:
-        e: The exception to format
-        title: Optional title for the error panel
-    """
-    # Create panel title
+    """Format an exception with rich styling."""
     panel_title = title or f"[red bold]{e.__class__.__name__}[/]"
-    
-    # Get styled traceback
     tb = Traceback.from_exception(
         type(e),
         e,
@@ -28,11 +27,9 @@ def format_error(e: Exception, title: Optional[str] = None) -> None:
         show_locals=True,
         width=100,
         extra_lines=3,
-        theme="monokai",  # or "solarized-dark", "native", etc.
+        theme="monokai",
         word_wrap=True
     )
-    
-    # Create error message panel
     error_text = Text(str(e))
     error_panel = Panel(
         error_text,
@@ -40,8 +37,6 @@ def format_error(e: Exception, title: Optional[str] = None) -> None:
         border_style="red",
         padding=(1, 2)
     )
-    
-    # Print error summary and traceback
     console.print(error_panel)
     console.print(tb)
 
@@ -54,36 +49,28 @@ class RichHandler(logging.Handler):
         
     def emit(self, record: logging.LogRecord):
         try:
-            # Get the message
-            msg = self.format(record)
+            # Format with file location but keep it concise
+            location = f"[dim][{record.filename}:{record.lineno}][/]"
             
             # Choose style based on level
             if record.levelno >= logging.ERROR:
-                style = "bold red"
+                level_style = "bold red"
+                # For errors, use the full error formatter
+                if record.exc_info:
+                    format_error(record.exc_info[1])
+                    return
             elif record.levelno >= logging.WARNING:
-                style = "yellow"
+                level_style = "yellow"
             elif record.levelno >= logging.INFO:
-                style = "green"
+                level_style = "green"
             else:
-                style = "blue"
-                
-            # Add exception info if present
-            if record.exc_info:
-                exc_type, exc_value, exc_tb = record.exc_info
-                tb = Traceback.from_exception(
-                    exc_type,
-                    exc_value,
-                    exc_tb,
-                    show_locals=True,
-                    width=100,
-                    extra_lines=3,
-                    theme="monokai",
-                    word_wrap=True
-                )
-                self.console.print(msg, style=style)
-                self.console.print(tb)
-            else:
-                self.console.print(msg, style=style)
+                level_style = "blue"
+            
+            # Format the message
+            msg = f"{location} [{level_style}]{record.levelname}[/] {record.getMessage()}"
+            
+            # Print message
+            self.console.print(msg)
                 
         except Exception:
             self.handleError(record)

@@ -5,7 +5,12 @@ from typing import Dict, List, Union, Optional
 from pathlib import Path
 import torch
 import logging
-from ..image.types import TagResult
+from ..types import TagResult
+
+from abc import ABC, abstractmethod
+from typing import Dict, List, Union, Optional
+from pathlib import Path
+from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +29,20 @@ def get_default_device():
     return "cpu"
 
 class BaseTagger(ABC):
-    def __init__(self, device: Optional[str] = None):
-        """Initialize tagger with device selection.
-        Note: Actual model loading is handled by ModelRegistry."""
-        self.device = device or get_default_device()
+    def __init__(self, device: Optional[str] = None, config: Optional[Dict] = None):
+        """Initialize tagger with device selection and configuration.
+        
+        Args:
+            device: Optional device override
+            config: Configuration dictionary from detection_config.yaml
+        """
+        self.config = config or {}
+        # Use config device if provided, otherwise use default
+        self.device = (
+            device or 
+            self.config.get('device', {}).get('preferred') or 
+            get_default_device()
+        )
         logger.info(f"Creating {self.__class__.__name__} instance for device: {self.device}")
 
     @abstractmethod

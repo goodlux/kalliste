@@ -1,5 +1,5 @@
 """Image orientation detection using custom model."""
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 from pathlib import Path
 import torch
 import logging
@@ -7,7 +7,7 @@ from PIL import Image, UnidentifiedImageError
 import numpy as np
 
 from .base_tagger import BaseTagger
-from ..image.types import TagResult
+from ..types import TagResult
 from ..config import ORIENTATION_MODEL_ID
 
 logger = logging.getLogger(__name__)
@@ -15,11 +15,16 @@ logger = logging.getLogger(__name__)
 class OrientationTagger(BaseTagger):
     """Detects image orientation using a pre-trained model."""
     
-    def __init__(self, model=None, processor=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, model=None, processor=None, config: Optional[Dict] = None):
+        """Initialize OrientationTagger with model components and config."""
+        super().__init__(config=config)
         self.model = model
         self.processor = processor
         
+        # Get orientation-specific config
+        orientation_config = self.config.get('tagger', {}).get('orientation', {})
+        self.confidence_threshold = orientation_config.get('confidence', 0.8)
+
     def _ensure_valid_image(self, image: Image.Image) -> Image.Image:
         """Ensure image is in a format our model can process."""
         # Convert to RGB if needed
@@ -83,15 +88,15 @@ class OrientationTagger(BaseTagger):
                 raise
             
             # Create results
-            results = []
-            for label, prob in zip(self.model.config.id2label.values(), probs[0]):
-                results.append(
-                    TagResult(
-                        label=label,
-                        confidence=float(prob),
-                        category='orientation'
-                    )
+            results = [
+                TagResult(
+                    label=label,
+                    confidence=float(prob),
+                    category='orientation'
                 )
+                for label, prob in zip(self.model.config.id2label.values(), probs[0])
+                if float(prob) >= self.confidence_threshold
+            ]
             
             return {'orientation': sorted(results, key=lambda x: x.confidence, reverse=True)}
             
