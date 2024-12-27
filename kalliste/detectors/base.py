@@ -100,18 +100,25 @@ class DetectionConfig:
 class BaseDetector(ABC):
     """Base class for all detectors."""
     
-    def __init__(self, config: List[DetectionConfig]):
-        self.config = {det.name: det for det in config}
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize detector with configuration.
+        
+        Args:
+            config: Configuration dictionary from detection_config.yaml
+        """
+        self.config = config or {}
     
     @abstractmethod
-    def detect(self, image_path: Path) -> List[Region]:
+    def detect(self, 
+              image_path: Path, 
+              detection_types: List[str],
+              config: Optional[Dict] = None) -> List[Region]:
         """Run detection on an image.
         
         Args:
             image_path: Path to image file
-            
-        Returns:
-            List of detected regions
+            detection_types: List of types to detect
+            config: Optional override configuration
         """
         pass
     

@@ -1,5 +1,5 @@
 # kalliste/processors/region_processor.py
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import numpy as np
 from pathlib import Path
 from PIL import Image
@@ -8,6 +8,12 @@ from kalliste.models.exported_image import Region
 class RegionProcessor:
     """Handles region processing and SDXL format conversion."""
     
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize processor with configuration."""
+        self.config = config or {}
+        self.target_config = self.config.get('target', {})
+        self.platform = self.target_config.get('platform', 'SDXL')
+        
     # SDXL training dimensions and their ratios
     SDXL_DIMENSIONS = [
         ((1024, 1024), (1, 1)),      # Square
@@ -38,8 +44,17 @@ class RegionProcessor:
         """Expand bounding box to match target dimensions while maintaining aspect ratio."""
         x1, y1, x2, y2 = bbox.x1, bbox.y1, bbox.x2, bbox.y2
         crop_width, crop_height = x2 - x1, y2 - y1
-        # TODO: Use utils.expand_region here???
 
+        # Get padding from config or use defaults
+        padding_config = self.config.get('padding', {}).get(region_type.lower(), {})
+        
+        if region_type.lower() == 'face':
+            pad_x = int(crop_width * padding_config.get('x', 0.4))
+            pad_y = int(crop_height * padding_config.get('y', 0.5))
+        elif region_type.lower() == 'person':
+            pad_x = int(crop_width * padding_config.get('x', 0.15))
+            pad_y = int(crop_height * padding_config.get('y', 0.1))
+        
         # Apply type-specific padding before SDXL ratio adjustment
         if region_type.lower() == 'face':
             # Faces need extra padding to include more head/hair/neck context

@@ -1,12 +1,12 @@
 """Image captioning using BLIP2 model."""
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 from pathlib import Path
 import torch
 import logging
 from PIL import Image
 
 from .base_tagger import BaseTagger
-from ..image.types import TagResult
+from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +17,17 @@ class CaptionTagger(BaseTagger):
     to receive initialized model and processor instances.
     """
     
-    def __init__(self, model=None, processor=None, **kwargs):
-        """Initialize CaptionTagger with model components.
-        
-        Args:
-            model: Pre-initialized BLIP2 model instance
-            processor: Pre-initialized BLIP2 processor
-            **kwargs: Additional arguments passed to BaseTagger
-        """
-        super().__init__(**kwargs)
+    def __init__(self, model=None, processor=None, config: Optional[Dict] = None):
+        """Initialize CaptionTagger with model components and config."""
+        super().__init__(config=config)
         self.model = model
         self.processor = processor
+        
+        # Get caption-specific config
+        caption_config = self.config.get('tagger', {}).get('caption', {})
+        self.max_length = caption_config.get('max_length', 100)
+        self.temperature = caption_config.get('temperature', 1.0)
+        self.repetition_penalty = caption_config.get('repetition_penalty', 1.5)
 
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
         """Generate a caption for an image.
@@ -51,11 +51,10 @@ class CaptionTagger(BaseTagger):
             with torch.inference_mode():
                 output = self.model.generate(
                     **inputs,
-                    max_new_tokens=100,
+                    max_new_tokens=self.max_length,
                     do_sample=True,
-                    temperature=1,
-                    length_penalty=1,
-                    repetition_penalty=1.5
+                    temperature=self.temperature,
+                    repetition_penalty=self.repetition_penalty
                 )
             
             caption = self.processor.decode(output[0], skip_special_tokens=True)
