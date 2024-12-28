@@ -7,13 +7,12 @@ from PIL import Image
 from ultralytics import YOLO
 import torch
 import logging
-import requests
 
 from kalliste.models.exported_image import ExportedImage, Region
 from kalliste.processors.region_processor import RegionProcessor
 from kalliste.processors.image_resizer import ImageResizer
 from kalliste.processors.metadata_processor import MetadataProcessor
-from kalliste.config import YOLO_PERSON_MODEL, YOLO_FACE_MODEL, YOLO_CACHE_DIR
+from kalliste.config import YOLO_PERSON_MODEL, YOLO_FACE_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +24,10 @@ class CropProcessor:
                  iou_threshold: float = 0.7):
         
         """Initialize the CropProcessor with both person and face YOLO models."""
-        logger.info(f"YOLO cache directory: {YOLO_CACHE_DIR}")
-        logger.info(f"YOLO cache directory exists: {YOLO_CACHE_DIR.exists()}")
-        logger.info(f"YOLO cache directory contents: {list(YOLO_CACHE_DIR.glob('*'))}")
-        
         logger.info(f"Loading person detection model: {person_model_path}")
         self.person_model = self._load_yolo_model(person_model_path)
         logger.info(f"Loading face detection model: {face_model_path}")
-        self.face_model = self._load_face_model(face_model_path)
+        self.face_model = self._load_yolo_model(face_model_path)
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
         
@@ -41,7 +36,7 @@ class CropProcessor:
         self.metadata_processor = MetadataProcessor()
         
     def _load_yolo_model(self, model_path: str) -> YOLO:
-        """Load a regular YOLO model."""
+        """Load a YOLO model."""
         try:
             logger.info(f"Loading YOLO model: {model_path}")
             model = YOLO(model_path)
@@ -49,29 +44,6 @@ class CropProcessor:
             return model
         except Exception as e:
             logger.error(f"Failed to load model {model_path}: {e}")
-            raise
-            
-    def _load_face_model(self, model_path: str) -> YOLO:
-        """Load the face detection model."""
-        try:
-            cache_path = YOLO_CACHE_DIR / model_path
-            
-            if not cache_path.exists():
-                logger.info(f"Face model not found in {cache_path}, downloading...")
-                url = "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov8n-face.pt"
-                
-                response = requests.get(url)
-                response.raise_for_status()
-                
-                cache_path.write_bytes(response.content)
-                logger.info(f"Face model downloaded to {cache_path}")
-            
-            model = YOLO(str(cache_path))
-            logger.info("Face model loaded successfully")
-            return model
-            
-        except Exception as e:
-            logger.error(f"Failed to load face model: {e}")
             raise
 
     def process_image(self, image: ExportedImage) -> List[Region]:

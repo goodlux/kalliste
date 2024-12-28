@@ -1,106 +1,80 @@
-"""Subject orientation classification. Returns BACK, FRONT, SIDE based on subject orientation to camera."""
-
-from typing import Dict, List, Union, Any
+"""Image orientation detection using custom model."""
+from typing import Dict, List, Union, Optional
 from pathlib import Path
-from PIL import Image
-import torch
 import logging
-from transformers import AutoModelForImageClassification, AutoProcessor, pipeline
+import torch
+from PIL import Image
 
-from .base_tagger import BaseTagger, TagResult
-from ..config import ORIENTATION_MODEL_ID
+from .base_tagger import BaseTagger
+from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
 class OrientationTagger(BaseTagger):
-    """Image orientation classification."""
+    """Detects image orientation using a pre-trained model.
     
-    def __init__(self, model_id: str = ORIENTATION_MODEL_ID, **kwargs):
-        """Initialize orientation tagger.
+    Predicts image orientation from a set of standard orientations
+    (e.g., 'landscape', 'portrait', 'square').
+    """
+    
+    def __init__(
+        self, 
+        model,
+        config: Optional[Dict] = None,
+        confidence_threshold: float = 0.8  # Default confidence threshold
+    ):
+        """Initialize OrientationTagger.
         
         Args:
-            model_id: HuggingFace model ID for orientation classifier
-            **kwargs: Additional arguments passed to BaseTagger
+            model: Pre-initialized orientation detection model
+            config: Optional configuration dictionary
+            confidence_threshold: Minimum confidence for tag inclusion (0.0-1.0)
+                Default: 0.8
+                Recommended range: 0.5-0.95
         """
-        super().__init__(**kwargs)
-        self.model_id = model_id
-        self.pipeline = None
-        self._load_model()
-    
-    def _load_model(self):
-        """Load orientation classifier model and processor."""
-        try:
-            logger.info(f"Loading orientation model: {self.model_id}")
-            # Use CPU for MPS, otherwise use specified device
-            device = "cpu" if self.device == "mps" else self.device
-            
-            # Load model and processor
-            model = AutoModelForImageClassification.from_pretrained(
-                self.model_id
-            ).to(device)
-            
-            processor = AutoProcessor.from_pretrained(self.model_id)
-            
-            # Create pipeline
-            self.pipeline = pipeline(
-                "image-classification",
-                model=model,
-                image_processor=processor,
-                device=device
-            )
-            
-            logger.info(f"Orientation model loaded successfully on {device}")
-            
-        except Exception as e:
-            logger.error(f"Failed to load orientation model: {e}")
-            raise
-    
-    def _preprocess_image(self, image: Image.Image) -> Image.Image:
-        """Preprocess image for orientation classifier."""
-        return image  # Pipeline handles preprocessing
-    
-    def _postprocess_output(self, output: List[Dict[str, float]]) -> Dict[str, List[TagResult]]:
-        """Convert pipeline output to TagResults."""
-        return {
-            'orientation': [
-                TagResult(
-                    label=result['label'],
-                    confidence=result['score'],
-                    category='orientation'
-                )
-                for result in output
-            ]
-        }
-    
+        super().__init__(model, config)
+        
+        # Use config override if provided, otherwise use default
+        self.confidence_threshold = (
+            self.config.get('orientation', {}).get('confidence_threshold', confidence_threshold)
+        )
+
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Classify image orientation.
+        """Generate orientation tags for an image.
         
         Args:
             image_path: Path to the image file
             
         Returns:
-            Dictionary with 'orientation' key mapping to list of TagResults
-        """
-        image_path = Path(image_path)
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-        
-        try:
-            # Load and classify image
-            image = Image.open(image_path).convert('RGB')
-            results = self.pipeline(image)
+            Dictionary with 'orientation' key mapping to list of TagResults,
+            sorted by confidence
             
-            # Process results
-            return self._postprocess_output(results)
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            RuntimeError: If orientation detection fails
+        """
+        try:
+            # Use base class method to load and validate image
+            image = self._load_and_validate_image(image_path)
+            
+            # Run model inference
+            with torch.inference_mode():
+                outputs = self.model(image)
+                probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+            
+            # Create results for predictions above threshold
+            results = [
+                TagResult(
+                    label=label,
+                    confidence=float(prob),
+                    category='orientation'
+                )
+                for label, prob in zip(self.model.config.id2label.values(), probs[0])
+                if float(prob) >= self.confidence_threshold
+            ]
+            
+            return {'orientation': sorted(results, key=lambda x: x.confidence, reverse=True)}
             
         except Exception as e:
-            logger.error(f"Orientation classification failed: {e}")
-            return {
-                'orientation': [
-                    TagResult(
-                        label="unknown",
-                        confidence=0.0,
-                        category='orientation'
-                    )
-                ]
-            }
+            logger.error(f"Orientation tagging failed for {image_path}: {e}", exc_info=True)
+            raise RuntimeError(f"Orientation detection failed: {e}")

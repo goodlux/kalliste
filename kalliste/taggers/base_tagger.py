@@ -1,70 +1,87 @@
-"""Base classes and utilities for Kalliste image tagging system."""
-
-from dataclasses import dataclass
-from typing import Optional, Dict, List, Union, Any
+"""Base class for all Kalliste image taggers."""
+from abc import ABC, abstractmethod
+from typing import Dict, List, Union, Optional
 from pathlib import Path
-from PIL import Image
 import logging
-import torch
+from PIL import Image, UnidentifiedImageError
+from ..types import TagResult
+
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class TagResult:
-    """Stores the results of a single tag/classification"""
-    label: str
-    confidence: float
-    category: str  # e.g., 'orientation', 'style', 'content'
-
-    def __repr__(self):
-        return f"{self.category}:{self.label}({self.confidence:.2f})"
-
-def get_default_device():
-    """Determine the best available device."""
-    if torch.backends.mps.is_available():
-        try:
-            test_tensor = torch.zeros(1).to('mps')
-            _ = test_tensor + 1
-            logger.info("MPS device validated")
-            return "mps"
-        except Exception as e:
-            logger.warning(f"MPS failed validation: {e}")
-            logger.info("Falling back to CPU")
-            return "cpu"
-    elif torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
-
-class BaseTagger:
-    """Base class for all image taggers."""
+class BaseTagger(ABC):
+    """Base tagger class that all specific taggers should inherit from."""
     
-    def __init__(self, device: Optional[str] = None):
-        """Initialize the tagger with specified device."""
-        self.device = device or get_default_device()
-        logger.info(f"Initializing {self.__class__.__name__} on device: {self.device}")
+    def __init__(self, model, config: Optional[Dict] = None):
+        """Initialize base tagger.
         
-        # For models that need CPU when using MPS
-        self.model_device = 'cpu' if self.device == 'mps' else self.device
+        Args:
+            model: Pre-initialized model (should already have device configured)
+            config: Optional configuration overrides
+        """
+        self.model = model
+        self.config = config or {}
 
+    def _load_and_validate_image(self, image_path: Union[str, Path]) -> Image.Image:
+        """Load and validate image file.
+        
+        Args:
+            image_path: Path to image file
+            
+        Returns:
+            PIL.Image: Loaded and validated image in RGB format
+            
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            UnidentifiedImageError: If image format cannot be identified
+            ValueError: If image validation fails
+        """
+        # Convert to Path object if string
+        if isinstance(image_path, str):
+            image_path = Path(image_path)
+            
+        # Check file exists
+        if not image_path.exists():
+            raise FileNotFoundError(f"Image not found: {image_path}")
+            
+        try:
+            # Load image
+            image = Image.open(image_path)
+            
+            # Convert to RGB if needed
+            if image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            
+            # Ensure image is properly loaded
+            image.load()
+            
+            # Remove alpha channel if present
+            if 'A' in image.getbands():
+                bands = image.split()
+                if len(bands) == 4:  # RGBA
+                    image = Image.merge('RGB', bands[:3])
+                    
+            return image
+            
+        except UnidentifiedImageError:
+            logger.error(f"Could not identify image format: {image_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading image {image_path}: {e}")
+            raise ValueError(f"Image validation failed: {e}")
+
+    @abstractmethod
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Tag an image and return results.
+        """Generate tags for an image.
         
         Args:
             image_path: Path to the image file
             
         Returns:
             Dictionary mapping tag categories to lists of TagResults
+        
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            RuntimeError: If tagging fails
         """
-        raise NotImplementedError("Subclasses must implement tag_image")
-    
-    def _load_model(self):
-        """Load the model and any required processors."""
-        raise NotImplementedError("Subclasses must implement _load_model")
-    
-    def _preprocess_image(self, image: Image.Image) -> Any:
-        """Preprocess image for model input."""
-        raise NotImplementedError("Subclasses must implement _preprocess_image")
-    
-    def _postprocess_output(self, output: Any) -> Dict[str, List[TagResult]]:
-        """Convert model output to TagResults."""
-        raise NotImplementedError("Subclasses must implement _postprocess_output")
+        pass

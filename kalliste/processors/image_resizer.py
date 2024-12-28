@@ -1,110 +1,63 @@
 from pathlib import Path
-from typing import Union, Tuple, Optional
+from typing import Dict, List, Tuple, Union
 from PIL import Image
+import uuid
+import logging
 
-class ImageResizer:
-    def __init__(self, target_size: Optional[Tuple[int, int]] = None):
-        self.target_size = target_size
+from ..processors.metadata_processor import MetadataProcessor
+from ..types import TagResult
+
+logger = logging.getLogger(__name__)
+
+class SDXLResizer:
+    """Handles resizing images to SDXL dimensions while maintaining aspect ratio."""
+    
+    # SDXL dimensions from RegionProcessor
+    SDXL_DIMENSIONS = [
+        ((1024, 1024), (1, 1)),      # Square
+        ((1152, 896), (9, 7)),       # Landscape
+        ((896, 1152), (7, 9)),       # Portrait
+        ((1216, 832), (19, 13)),     # Landscape
+        ((832, 1216), (13, 19)),     # Portrait
+        ((1344, 768), (7, 4)),       # Landscape
+        ((768, 1344), (4, 7)),       # Portrait
+        ((1536, 640), (12, 5)),      # Landscape
+        ((640, 1536), (5, 12))       # Portrait (iPhone)
+    ]
+    
+    SDXL_RATIOS = [(w/h, (w,h)) for (w,h), _ in SDXL_DIMENSIONS]
+    
+    @classmethod
+    def get_target_dimensions(cls, width: int, height: int) -> Tuple[int, int]:
+        """Find the matching SDXL dimensions based on aspect ratio."""
+        current_ratio = width / height
+        closest_ratio = min(cls.SDXL_RATIOS, key=lambda x: abs(x[0] - current_ratio))
+        return closest_ratio[1]
+    
+    @classmethod
+    def resize_image(cls, image: Union[Path, Image.Image], output_path: Path) -> None:
+        """Resize image to appropriate SDXL dimensions.
         
-    def resize_image(self,
-                    image: Union[str, Path, Image.Image],
-                    output_path: Optional[Union[str, Path]] = None,
-                    size: Optional[Tuple[int, int]] = None,
-                    maintain_aspect: bool = True) -> Tuple[int, int]:
-        """Resize image while optionally maintaining aspect ratio."""
-        if size is None:
-            size = self.target_size
-        if size is None:
-            raise ValueError("No target size specified")
-            
+        Args:
+            image: PIL Image or path to image
+            output_path: Where to save the resized image
+        """
         # Handle input type
-        if isinstance(image, Image.Image):
-            img = image
-            needs_close = False
+        if isinstance(image, Path):
+            img = Image.open(image)
         else:
-            img = Image.open(Path(image))
-            needs_close = True
-        
-        try:
-            if maintain_aspect:
-                # Calculate new dimensions maintaining aspect ratio
-                orig_width, orig_height = img.size
-                target_width, target_height = size
-                
-                # Calculate scaling factors and use smaller ratio
-                width_ratio = target_width / orig_width
-                height_ratio = target_height / orig_height
-                scale = min(width_ratio, height_ratio)
-                
-                # Calculate new dimensions
-                new_width = int(orig_width * scale)
-                new_height = int(orig_height * scale)
-                resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            else:
-                resized = img.resize(size, Image.Resampling.LANCZOS)
-            
-            # Save resized image if output path provided
-            if output_path is not None:
-                output_path = Path(output_path)
-                resized.save(output_path, quality=95, optimize=True)
-            
-            return resized.size
-            
-        finally:
-            if needs_close:
-                img.close()
-            
-    def resize_and_pad(self,
-                      image: Union[str, Path, Image.Image],
-                      output_path: Optional[Union[str, Path]] = None,
-                      size: Optional[Tuple[int, int]] = None,
-                      background_color: Union[Tuple[int, int, int], str] = (255, 255, 255)) -> Tuple[int, int]:
-        """Resize image maintaining aspect ratio and pad to target size."""
-        if size is None:
-            size = self.target_size
-        if size is None:
-            raise ValueError("No target size specified")
-        
-        # Handle input type
-        if isinstance(image, Image.Image):
             img = image
-            needs_close = False
-        else:
-            img = Image.open(Path(image))
-            needs_close = True
             
         try:
-            target_width, target_height = size
+            # Get target dimensions
+            target_dims = cls.get_target_dimensions(*img.size)
             
-            # Calculate dimensions maintaining aspect ratio
-            orig_width, orig_height = img.size
-            width_ratio = target_width / orig_width
-            height_ratio = target_height / orig_height
-            scale = min(width_ratio, height_ratio)
+            # Resize with high quality settings
+            resized = img.resize(target_dims, Image.Resampling.LANCZOS)
             
-            new_width = int(orig_width * scale)
-            new_height = int(orig_height * scale)
-            
-            # Resize image
-            resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            # Create padded image
-            result = Image.new("RGB", size, background_color)
-            
-            # Calculate padding
-            left = (target_width - new_width) // 2
-            top = (target_height - new_height) // 2
-            
-            # Paste resized image onto padded background
-            result.paste(resized, (left, top))
-            
-            # Save result if output path provided
-            if output_path is not None:
-                output_path = Path(output_path)
-                result.save(output_path, quality=95, optimize=True)
-            
-            return result.size
+            # Save with PNG optimization
+            resized.save(output_path, "PNG", optimize=True)
             
         finally:
-            if needs_close:
+            if isinstance(image, Path):
                 img.close()

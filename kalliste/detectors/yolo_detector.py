@@ -1,179 +1,97 @@
-"""YOLO-based detector supporting multiple detection types."""
+"""YOLO detector implementation."""
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
-import numpy as np
-from PIL import Image
-from ultralytics import YOLO
-import sys
+from typing import List, Dict, Set, Optional
 import logging
-
-from .base import BaseDetector, DetectionConfig, Region
+from ultralytics import YOLO
+from .base import BaseDetector, Region
+from .yolo_classes import YOLO_CLASSES, CLASS_GROUPS
+from ..config import YOLO_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
 class YOLODetector(BaseDetector):
-    """YOLO-based detector supporting multiple detection types."""
+    """YOLO-based object detector."""
     
-    DEFAULT_MODEL = "yolov8n"  # Default to nano model if none specified
-    DEFAULT_YOLO_DIR = Path.home() / '.config' / 'ultralytics'
-    
-    def __init__(self, 
-                 model: str = DEFAULT_MODEL,
-                 face_model: Optional[str] = None,
-                 config: List[DetectionConfig] = None):
-        """Initialize YOLO detector.
-        
-        Args:
-            model: Model name (e.g., 'yolov8n', 'yolov8s', 'yolov8m', etc.)
-                  Will be downloaded to default YOLO location if needed
-            face_model: Optional face detection model name
-            config: List of detection configurations
-        """
+    def __init__(self, config: Dict):
+        """Initialize YOLO detector with config."""
         super().__init__(config)
         
-        # Load main model using just the model name to ensure default location is used
-        model_name = model.removesuffix('.pt')
-        model_path = self.DEFAULT_YOLO_DIR / f"{model_name}.pt"
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        self.model = YOLO(str(model_path))
-            
-        # Load face model if specified
-        self.face_model = None
-        if face_model:
-            try:
-                face_model_name = face_model.removesuffix('.pt')
-                face_model_path = self.DEFAULT_YOLO_DIR / f"{face_model_name}.pt"
-                face_model_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            # Load model based on config
+            model_path = YOLO_CACHE_DIR / 'yolo11x.pt'
+            logger.info(f"Loading YOLO model: {model_path}")
+            self.model = YOLO(model_path)
                 
-                # Since face model isn't standard, for now let's skip it if not found
-                if not face_model_path.exists():
-                    logger.warning(f"Face model {face_model_name} not found at {face_model_path}")
-                    logger.warning("Skipping face detection. Please download yolov8n-face.pt manually if needed.")
-                else:
-                    self.face_model = YOLO(str(face_model_path))
-            except Exception as e:
-                logger.error(f"Error loading face model: {e}")
-                logger.warning("Continuing without face detection")
-        
-        # Map YOLO class indices to our detection types
-        # Standard YOLO COCO classes
-        self.class_map = {
-            0: 'person',
-            1: 'bicycle',
-            2: 'car',
-            3: 'motorcycle',
-            15: 'cat',
-            16: 'dog',
-            # Add more as needed
-        }
-        
-        # Filter class map to only include configured detection types
-        self.active_classes = {
-            class_id: det_type 
-            for class_id, det_type in self.class_map.items()
-            if det_type in self.config
-        }
+        except Exception as e:
+            logger.error("Failed to initialize YOLO detector", exc_info=True)
+            raise
     
-    def get_image_size(self, image_path: Path) -> Tuple[int, int]:
-        """Get image dimensions."""
-        with Image.open(image_path) as img:
-            return img.size
-    
-    def detect_faces(self, image_path: Path) -> List[Region]:
-        """Run face detection using YOLOv8-face model."""
-        if not self.face_model:
-            return []
-            
-        image_size = self.get_image_size(image_path)
-        regions = []
-        
-        # Get face-specific config
-        face_config = self.config.get('face')
-        if not face_config:
-            return []
-            
-        # Run face detection
-        results = self.face_model(str(image_path), conf=face_config.confidence_threshold)[0]
-        
-        # Process each detection
-        for result in results:
-            for box in result.boxes:
-                conf = float(box.conf[0])
-                xyxy = box.xyxy[0].cpu().numpy()
-                
-                region = Region(
-                    x1=int(xyxy[0]), 
-                    y1=int(xyxy[1]),
-                    x2=int(xyxy[2]), 
-                    y2=int(xyxy[3]),
-                    region_type='face',
-                    confidence=conf
-                )
-                
-                # Adjust region to meet SDXL requirements
-                adjusted_region = self.adjust_for_sdxl(region, image_size)
-                if adjusted_region:
-                    regions.append(adjusted_region)
-        
-        return regions
-    
-    def detect(self, image_path: Path) -> List[Region]:
+    def detect(self, 
+              image_path: Path, 
+              detection_types: List[str],
+              config: Dict) -> List[Region]:
         """Run detection on an image.
         
         Args:
             image_path: Path to image file
-            
-        Returns:
-            List of detected regions meeting configuration requirements
+            detection_types: List of types to detect
+            config: Configuration for each detection type
         """
-        regions = []
-        image_size = self.get_image_size(image_path)
-        
-        # First, get face detections if we have a face model
-        if 'face' in self.config and self.face_model:
-            regions.extend(self.detect_faces(image_path))
-        
-        # Skip other detections if we only want faces
-        if len(self.active_classes) == 0:
-            return regions
+        if not image_path.exists():
+            raise FileNotFoundError(f"Image not found: {image_path}")
             
-        # Get minimum confidence threshold across all active detection types
-        min_conf = min(self.config[det_type].confidence_threshold 
-                      for det_type in self.active_classes.values())
-        
-        # Run YOLO detection
-        results = self.model(str(image_path), conf=min_conf)[0]
-        
-        # Process each detection
-        for result in results:
-            for box in result.boxes:
-                class_id = int(box.cls[0])
-                
-                # Skip if not a class we're looking for
-                if class_id not in self.active_classes:
-                    continue
-                    
-                det_type = self.active_classes[class_id]
-                conf = float(box.conf[0])
-                
-                # Skip if below type-specific confidence threshold
-                if conf < self.config[det_type].confidence_threshold:
-                    continue
-                
-                # Create region from detection
-                xyxy = box.xyxy[0].cpu().numpy()
+        try:
+            results = []
+            
+            # Convert detection types to YOLO class indices
+            class_ids = set()
+            for det_type in detection_types:
+                if det_type in YOLO_CLASSES:
+                    class_ids.add(YOLO_CLASSES[det_type])
+                elif det_type in CLASS_GROUPS:
+                    for class_name in CLASS_GROUPS[det_type]:
+                        class_ids.add(YOLO_CLASSES[class_name])
+            
+            # Get the highest confidence and lowest IOU threshold across all types
+            confidence = min(cfg['confidence'] for cfg in config.values())
+            iou_threshold = min(cfg['iou_threshold'] for cfg in config.values())
+            
+            # Run inference
+            pred = self.model(
+                str(image_path),
+                conf=confidence,
+                iou=iou_threshold,
+                classes=list(class_ids)  # Filter for requested classes
+            )[0]
+            
+            # Convert to Region objects
+            for result in pred.boxes:
+                cls_id = int(result.cls[0])
+                # Map back to detection type
+                det_type = next(
+                    k for k, v in YOLO_CLASSES.items() 
+                    if v == cls_id and k in detection_types
+                )
+                # TODO: Need a "region index" ... that has the region number (face 1, face 2, etc.) ... just the number per region type. This should go into the filename.
+                xyxy = result.xyxy[0].cpu().numpy()
                 region = Region(
-                    x1=int(xyxy[0]), 
+                    x1=int(xyxy[0]),
                     y1=int(xyxy[1]),
-                    x2=int(xyxy[2]), 
+                    x2=int(xyxy[2]),
                     y2=int(xyxy[3]),
                     region_type=det_type,
-                    confidence=conf
+                    confidence=float(result.conf[0])
                 )
-                
-                # Adjust region to meet SDXL requirements
-                adjusted_region = self.adjust_for_sdxl(region, image_size)
-                if adjusted_region:
-                    regions.append(adjusted_region)
-        
-        return regions
+                results.append(region)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Detection failed: {e}", exc_info=True)
+            raise
+
+    def get_supported_types(self) -> List[str]:
+        """Get list of all supported detection types."""
+        types = set(YOLO_CLASSES.keys())
+        types.update(CLASS_GROUPS.keys())
+        return sorted(types)

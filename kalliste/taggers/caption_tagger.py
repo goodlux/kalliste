@@ -1,120 +1,92 @@
-"""BLIP2-based image captioning tagger."""
-
-from typing import Dict, List, Union, Any
+"""Image captioning using BLIP2 model."""
+from typing import Dict, List, Union, Optional
 from pathlib import Path
-from PIL import Image
-import torch
 import logging
-from transformers import Blip2Processor, Blip2ForConditionalGeneration
+import torch
 
-from .base_tagger import BaseTagger, TagResult
-from ..config import BLIP2_MODEL_ID
+from .base_tagger import BaseTagger
+from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
 class CaptionTagger(BaseTagger):
-    """Image captioning using BLIP2 model."""
+    """Generates natural language captions for images using BLIP2 model."""
     
-    def __init__(self, model_id: str = BLIP2_MODEL_ID, **kwargs):
-        """Initialize BLIP2 caption tagger.
+    def __init__(
+        self,
+        model,
+        config: Optional[Dict] = None,
+        max_length: int = 100,          # Default max tokens
+        temperature: float = 1.0,        # Default temperature
+        repetition_penalty: float = 1.5  # Default repetition penalty
+    ):
+        """Initialize CaptionTagger.
         
         Args:
-            model_id: HuggingFace model ID for BLIP2
-            **kwargs: Additional arguments passed to BaseTagger
+            model: Pre-initialized BLIP2 model
+            config: Optional configuration dictionary
+            max_length: Maximum caption length in tokens
+                Default: 100
+                Recommended range: 50-200
+            temperature: Generation temperature for sampling
+                Default: 1.0
+                Recommended range: 0.1-2.0
+                Higher values make output more diverse but less focused
+            repetition_penalty: Penalty for token repetition
+                Default: 1.5
+                Recommended range: 1.0-2.0
+                Higher values reduce word repetition
         """
-        super().__init__(**kwargs)
-        self.model_id = model_id
-        self.processor = None
-        self.model = None
-        self._load_model()
-    
-    def _load_model(self):
-        """Load BLIP2 model and processor."""
-        logger.info(f"Loading BLIP2 model: {self.model_id}")
-        try:
-            self.processor = Blip2Processor.from_pretrained(self.model_id)
-            
-            # Always load BLIP2 on CPU when using MPS
-            device = "cpu" if self.device == "mps" else self.device
-            dtype = torch.float16 if device == "cuda" else torch.float32
-            
-            self.model = Blip2ForConditionalGeneration.from_pretrained(
-                self.model_id,
-                torch_dtype=dtype,
-                load_in_8bit=True if device == "cuda" else False
-            ).to(device)
-            
-            logger.info(f"BLIP2 model loaded successfully on {device}")
-            
-        except Exception as e:
-            logger.error(f"Failed to load BLIP2 model: {e}")
-            raise
-    
-    def _preprocess_image(self, image: Image.Image) -> Any:
-        """Preprocess image for BLIP2 model."""
-        device = "cpu" if self.device == "mps" else self.device
-        return self.processor(image, return_tensors="pt").to(device)
-    
-    def _postprocess_output(self, output: Any) -> Dict[str, List[TagResult]]:
-        """Convert BLIP2 output to TagResults."""
-        caption = self.processor.decode(output[0], skip_special_tokens=True)
-        return {
-            'caption': [
-                TagResult(
-                    label=caption.strip(),
-                    confidence=1.0,  # BLIP2 doesn't provide confidence scores
-                    category='caption'
-                )
-            ]
-        }
-    
+        super().__init__(model, config)
+        
+        # Get caption-specific config or use defaults
+        caption_config = self.config.get('caption', {})
+        self.max_length = caption_config.get('max_length', max_length)
+        self.temperature = caption_config.get('temperature', temperature)
+        self.repetition_penalty = caption_config.get('repetition_penalty', repetition_penalty)
+
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Generate caption for an image.
+        """Generate a natural language caption for an image.
         
         Args:
             image_path: Path to the image file
             
         Returns:
-            Dictionary with 'caption' key mapping to list of TagResults
-        """
-        image_path = Path(image_path)
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-        
-        try:
-            # Load and preprocess image
-            image = Image.open(image_path).convert('RGB')
-            inputs = self._preprocess_image(image)
+            Dictionary with 'caption' key mapping to list containing a single TagResult
+            with the generated caption
             
-            # Move model to CPU if using MPS
-            if self.device == "mps":
-                self.model = self.model.to("cpu")
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            RuntimeError: If caption generation fails
+        """
+        try:
+            # Use base class method to load and validate image
+            image = self._load_and_validate_image(image_path)
             
             # Generate caption
-            output = self.model.generate(
-                **inputs,
-                max_new_tokens=100,
-                do_sample=True,
-                temperature=1,
-                length_penalty=1,
-                repetition_penalty=1.5
-            )
+            with torch.inference_mode():
+                inputs = self.model.processor(image, return_tensors="pt")
+                output = self.model.generate(
+                    **inputs,
+                    max_new_tokens=self.max_length,
+                    do_sample=True,
+                    temperature=self.temperature,
+                    repetition_penalty=self.repetition_penalty
+                )
+                
+                caption = self.model.processor.decode(output[0], skip_special_tokens=True)
             
-            # Move model back to MPS if needed
-            if self.device == "mps":
-                self.model = self.model.to("mps")
-            
-            # Process results
-            return self._postprocess_output(output)
-            
-        except Exception as e:
-            logger.error(f"BLIP2 captioning failed: {e}")
+            # Return caption with confidence 1.0 since it's a generative model
             return {
                 'caption': [
                     TagResult(
-                        label="Failed to generate caption",
-                        confidence=0.0,
+                        label=caption.strip(),
+                        confidence=1.0,
                         category='caption'
                     )
                 ]
             }
+            
+        except Exception as e:
+            logger.error(f"Caption generation failed for {image_path}: {e}", exc_info=True)
+            raise RuntimeError(f"Caption generation failed: {e}")

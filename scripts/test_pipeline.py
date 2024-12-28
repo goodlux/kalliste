@@ -1,66 +1,65 @@
-"""Test script for tagger pipeline."""
+#!/usr/bin/env python3
 
+import sys
+import os
 import asyncio
-from pathlib import Path
 import logging
-from typing import Optional
+from pathlib import Path
+import yaml
 
-from kalliste.taggers.tagger_pipeline import TaggerPipeline
-from kalliste.taggers.config import PipelineConfig
+# Add the project root to the Python path
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
 
-logging.basicConfig(level=logging.INFO)
+from kalliste.image.batch_processor import BatchProcessor
+from kalliste.utils import format_error
+
 logger = logging.getLogger(__name__)
 
-async def test_pipeline(
-    image_path: Path,
-    config: Optional[PipelineConfig] = None
-) -> None:
-    """Test the tagger pipeline on an image."""
+async def main():
+    logger.info("[blue]Starting pipeline test[/]")
     
-    # Use default config if none provided
-    config = config or PipelineConfig()
-    
-    # Initialize pipeline
-    pipeline = TaggerPipeline(config)
+    # Load default config
+    config_path = project_root / 'kalliste' / 'default_detection_config.yaml'
+    logger.info(f"Loading config from: [cyan]{config_path}[/]")
     
     try:
-        # Process image
-        results = await pipeline.tag_image(image_path)
-        
-        # Print results
-        logger.info("Tagging Results:")
-        for category, tags in results.items():
-            logger.info(f"\n{category.upper()}:")
-            for tag in tags:
-                logger.info(f"  {tag}")
-                
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
     except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
+        logger.error(f"Failed to load config", exc_info=True)
         raise
-
-async def main():
-    logger.info("Starting pipeline test...")
+        
+    logger.info(f"Input directory: [cyan]{project_root / 'test_images_input'}[/]")
+    logger.info(f"Output directory: [cyan]{project_root / 'test_images_output'}[/]")
     
-    # Example configuration
-    config = PipelineConfig(
-        wd14_confidence=0.4,  # Slightly higher confidence threshold
-        wd14_categories=['character', 'style']  # Only include these categories
-    )
-    logger.info("Configuration loaded")
+    processor = None
     
-    # Test directory
-    test_dir = Path("/Users/rob/repos/kalliste/test_images/02_test/input")
-    logger.info(f"Looking for images in: {test_dir}")
-    
-    # Process all PNG images in test directory
-    image_paths = list(test_dir.glob("*.png"))
-    logger.info(f"Found {len(image_paths)} PNG files")
-    
-    for image_path in image_paths:
-        logger.info(f"\nProcessing {image_path}")
-        await test_pipeline(image_path, config)
+    try:
+        logger.info("[green]Initializing BatchProcessor[/]")
+        input_root = project_root / 'test_images_input'
+        output_root = project_root / 'test_images_output'
+        
+        # Pass config to BatchProcessor
+        processor = BatchProcessor(
+            input_root=input_root, 
+            output_root=output_root,
+            config=config
+        )
+        await processor.initialize()
+        await processor.process_all()
+    except Exception as e:
+        logger.error("Pipeline failed", exc_info=True)
+        raise
+    finally:
+        if processor:
+            await processor.cleanup()
 
 if __name__ == "__main__":
-    logger.info("Script starting...")
-    asyncio.run(main())
-    logger.info("Script finished.")
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    except Exception as e:
+        logger.error("Fatal error", exc_info=True)
+        sys.exit(1)

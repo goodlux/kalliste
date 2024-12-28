@@ -1,43 +1,88 @@
 from pathlib import Path
-from typing import List
+from typing import List, Dict
+import logging
+import yaml
+from copy import deepcopy
 from .original_image import OriginalImage
-from .types import ProcessingStatus
-import asyncio
+
+logger = logging.getLogger(__name__)
 
 class Batch:
-    def __init__(self, batch_path: Path):
-        self.path = batch_path
-        self.original_images: List[OriginalImage] = []
-        self.status = ProcessingStatus.PENDING
-        self.scan_for_images()
+    def __init__(self, input_path: Path, output_path: Path, default_config: Dict):
+        self.input_path = input_path
+        self.output_path = output_path
+        self.default_config = default_config
+        self.config = self._load_batch_config()
+        self.images: List[OriginalImage] = []
+
+    def _load_batch_config(self) -> Dict:
+        """Load batch-specific config, falling back to defaults."""
+        # Start with a deep copy of default config
+        config = deepcopy(self.default_config)
         
+        # Check for batch-specific config
+        batch_config_path = self.input_path / 'detection_config.yaml'
+        if batch_config_path.exists():
+            try:
+                logger.info(f"Found batch-specific config at {batch_config_path}")
+                with open(batch_config_path) as f:
+                    batch_config = yaml.safe_load(f)
+                    
+                # Merge batch config over defaults
+                config.update(batch_config)
+                logger.info("Merged batch-specific config with defaults")
+            except Exception as e:
+                logger.error(f"Failed to load batch config from {batch_config_path}", exc_info=True)
+                # Continue with defaults
+                
+        return config
+
     def scan_for_images(self):
-        """Find all images in batch folder"""
-        for file in self.path.glob("*.jpg"):  # Add other extensions as needed
-            self.original_images.append(OriginalImage(file))
-            
-    async def process(self):
-        """Process all images in batch asynchronously"""
-        self.status = ProcessingStatus.PROCESSING
+        """Scan input directory for images."""
+        logger.info(f"Scanning for images in {self.input_path}")
         
         try:
-            tasks = [image.process() for image in self.original_images]
-            results = await asyncio.gather(*tasks)
-            
-            self.status = ProcessingStatus.COMPLETE
-            # Signal completion to batch processor
-            await self.on_complete()
-            return results
-            
+            for file in self.input_path.glob('*.png'):
+                try:
+                    original_image = OriginalImage(
+                        source_path=file,
+                        output_dir=self.output_path,
+                        config=self.config
+                    )
+                    self.images.append(original_image)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to create OriginalImage for {file}", exc_info=True)
+                    continue
+                    
+            if not self.images:
+                logger.warning(f"No PNG images found in {self.input_path}")
+                
+            logger.info(f"Found {len(self.images)} images")
+                    
         except Exception as e:
-            self.status = ProcessingStatus.ERROR
-            print(f"Error processing batch {self.path}: {e}")
+            logger.error(f"Error scanning for images", exc_info=True)
             raise
+
+    async def process(self):
+        """Process all images in the batch."""
+        logger.info(f"Processing batch: {self.input_path.name}")
         
-    async def on_complete(self):
-        """Called when all images in batch are complete"""
-        print(f"Batch {self.path} complete")
-        
-    async def on_image_complete(self, image_path: Path):
-        """Called when an original image signals completion"""
-        print(f"Image {image_path} in batch {self.path} complete")
+        # Scan for images if not already done
+        if not self.images:
+            self.scan_for_images()
+            
+        if not self.images:
+            logger.warning("No images to process")
+            return
+            
+        # Process each image
+        for image in self.images:
+            try:
+                logger.info(f"Processing image: {image.source_path.name}")
+                await image.process()
+            except Exception as e:
+                logger.error(f"Failed to process image {image.source_path}", exc_info=True)
+                raise  # Let the batch processor handle the error
+                
+        logger.info(f"Completed processing batch: {self.input_path.name}")

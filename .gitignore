@@ -1,6 +1,11 @@
-test_images/
+test_images_input/
+test_images_output/
+test_images_storage/
+
 .env
 __pycache__/
 *.pyc
 .DS_Store
 weights/*
+
+weights_bak/*
