@@ -1,5 +1,6 @@
 {
     "jupyter.notebookFileRoot": "${workspaceFolder}",
     "jupyter.useNotebookEditor": true,
-    "python.analysis.autoImportCompletions": true
+    "python.analysis.autoImportCompletions": true,
+    "terminal.integrated.scrollback": 100000
 }
