@@ -10,7 +10,7 @@ from transformers import (
     Blip2Processor, 
     Blip2ForConditionalGeneration
 )
-
+import timm
 from .base_tagger import BaseTagger
 from ..types import TagResult
 from .caption_tagger import CaptionTagger
@@ -64,7 +64,8 @@ class TaggerPipeline:
         for tagger_name in needed_taggers - set(self.taggers.keys()):
             try:
                 if tagger_name == 'wd14':
-                    model = AutoModelForImageClassification.from_pretrained(WD14_MODEL_ID)
+                    model = timm.create_model("hf_hub:SmilingWolf/wd-vit-large-tagger-v3", pretrained=True) #TODO: Standardize name to use model name in config, also loading with timm here to match model_registry.py.
+                    #AutoModelForImageClassification.from_pretrained(WD14_MODEL_ID)
                     self.taggers['wd14'] = WD14Tagger(
                         model=model,
                         config=self.config

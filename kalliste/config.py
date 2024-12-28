@@ -6,39 +6,55 @@ CACHE_DIR = Path.home() / ".cache"
 YOLO_CACHE_DIR = CACHE_DIR / "ultralytics"
 HF_CACHE_DIR = CACHE_DIR / "huggingface" / "hub"
 
+
 # Core model configurations - all in default cache locations
 MODELS = {
+    # Currently we are only using YOLO models for detection
     "detection": {
-        # In ~/.cache/ultralytics
-        "yolo": "yolov11x.pt"
+        "yolo": {
+            "model_id": "yolo",
+            "file": "yolov11x.pt",
+            "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt"
+        },
+        "yolo-face": {
+            "model_id": "yolo-face",
+            "file": "yolov11m-face.pt",
+            "url": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11m-face.pt"
+        }
     },
+    # Currently any other models MUST be available on Hugging Face Hub.
     "classification": {
-        # All in ~/.cache/huggingface/hub
-        "blip2": "Salesforce/blip2-opt-2.7b",
-        "orientation": "LucyintheSky/pose-estimation-front-side-back",
-        "wd14": "SmilingWolf/wd-vit-large-tagger-v3"
+        "wd14": {
+            "model_id": "wd14",
+            "hf_path": "SmilingWolf/wd-vit-large-tagger-v3",
+            "files": ["selected_tags.csv"]
+        },
+        "blip2": {
+            "model_id": "blip2",
+            "hf_path": "Salesforce/blip2-opt-2.7b",
+            "files": []
+        },
+        "orientation": {
+            "model_id": "orientation",
+            "hf_path": "LucyintheSky/pose-estimation-front-side-back",
+            "files": []
+        }
     }
 }
 
-# Detection configurations
-DETECTION_CONFIG = {
-    # Default confidence threshold for detectors
-    "confidence_threshold": 0.5,
+# TODO: Remove these from the codebase, instead use the MODELS config above. 
+# Use the model IDs from MODELS dictionary
+BLIP2_MODEL_ID = MODELS["classification"]["blip2"]
+ORIENTATION_MODEL_ID = MODELS["classification"]["orientation"]
+WD14_MODEL_ID = MODELS["classification"]["wd14"]
+
+
+
+# # Detection configurations
+# DETECTION_CONFIG = {
+#     # Default confidence threshold for detectors
+#     "confidence_threshold": 0.5,
     
-    # Default detection types to look for (if not specified)
-    "default_detection_types": ["person", "face"]
-}
-
-
-# Huggingface Models - Using default HF cache
-BLIP2_MODEL_ID = "Salesforce/blip2-opt-2.7b"
-ORIENTATION_MODEL_ID = "LucyintheSky/pose-estimation-front-side-back"
-
-# WD14 Configuration
-WD14_MODEL_ID = "hf_hub:SmilingWolf/wd-vit-large-tagger-v3"
-PROJECT_ROOT = Path(__file__).parent.parent
-WD14_WEIGHTS_DIR = PROJECT_ROOT / "weights" / "wd14"
-WD14_TAGS_FILE = WD14_WEIGHTS_DIR / "selected_tags.csv"
-
-# Only WD14 needs explicit directory management
-WD14_WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+#     # Default detection types to look for (if not specified)
+#     "default_detection_types": ["person", "face"]
+# }
