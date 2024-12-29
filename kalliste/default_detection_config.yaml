@@ -6,10 +6,10 @@ target:
 # Detector configuration
 detector:
   person:
-    confidence: 0.5
+    confidence_threshold: 0.5
     iou_threshold: 0.45
   face:
-    confidence: 0.6
+    confidence_threshold: 0.6
     iou_threshold: 0.35
 
 # Tagger configuration

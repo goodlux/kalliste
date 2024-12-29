@@ -1,129 +1,134 @@
-"""Pipeline for managing and running multiple image taggers."""
-from typing import Dict, List, Optional, Type, Union, Set
-import asyncio
+"""Image tagging using WD14 model."""
+from typing import Dict, List, Union, Optional, Set
 from pathlib import Path
 import logging
-from dataclasses import dataclass, field
-from transformers import (
-    AutoModelForImageClassification, 
-    AutoProcessor,
-    Blip2Processor, 
-    Blip2ForConditionalGeneration
-)
-import timm
+import torch
+import numpy as np
+
 from .base_tagger import BaseTagger
 from ..types import TagResult
-from .caption_tagger import CaptionTagger
-from .wd14_tagger import WD14Tagger
-from .orientation_tagger import OrientationTagger
-from ..config import (
-    ORIENTATION_MODEL_ID,
-    BLIP2_MODEL_ID,
-    WD14_MODEL_ID
-)
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class TaggerTypeConfig:
-    """Configuration for a specific detector type (face, person, etc)"""
-    enabled_taggers: Set[str]
-    wd14_confidence: float = 0.35
-    wd14_max_tags: int = 50
-    wd14_min_tags: int = 5
-
-@dataclass
-class PipelineConfig:
-    """Configuration for tagger pipeline."""
-    default_config: TaggerTypeConfig = field(default_factory=lambda: TaggerTypeConfig(
-        enabled_taggers={'caption', 'wd14', 'orientation'}
-    ))
-    type_configs: Dict[str, TaggerTypeConfig] = field(default_factory=dict)
-
-    def get_config_for_type(self, detection_type: str) -> TaggerTypeConfig:
-        """Get tagger configuration for a specific detection type"""
-        return self.type_configs.get(detection_type, self.default_config)
-
-class TaggerPipeline:
-    """Pipeline for managing and running multiple image taggers."""
+class WD14Tagger(BaseTagger):
+    """Tags images using WD14 model for anime/illustration-style tags."""
     
-    def __init__(self, config: Dict):
-        """Initialize tagger pipeline with configuration.
+    # Default configuration
+    DEFAULT_CONFIDENCE_THRESHOLD = 0.35
+    DEFAULT_MAX_TAGS = 50
+    DEFAULT_MIN_TAGS = 5
+    DEFAULT_BLACKLIST: Set[str] = set()  # Empty set by default
+    
+    @classmethod
+    def get_default_config(cls) -> Dict:
+        """Get default configuration for WD14 tagger."""
+        return {
+            'confidence': cls.DEFAULT_CONFIDENCE_THRESHOLD,  # Changed to match config.yaml
+            'max_tags': cls.DEFAULT_MAX_TAGS,
+            'min_tags': cls.DEFAULT_MIN_TAGS,
+            'blacklist': list(cls.DEFAULT_BLACKLIST)  # Convert set to list for config
+        }
+
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize WD14Tagger.
         
         Args:
-            config: Configuration dictionary from detection_config.yaml
+            config: Optional configuration dictionary with keys:
+                confidence: Minimum confidence for tag inclusion
+                    Default: 0.35
+                    Recommended range: 0.2-0.8
+                max_tags: Maximum number of tags per category
+                    Default: 50
+                    Recommended range: 10-100
+                min_tags: Minimum number of tags (will lower threshold if needed)
+                    Default: 5
+                    Recommended range: 1-20
+                blacklist: List of tags to exclude from results
+                    Default: []
         """
-        self.config = config
-        self.taggers = {}
+        super().__init__(model_id="wd14", config=config)
         
-    async def _ensure_taggers_initialized(self, region_type: str):
-        """Initialize taggers needed for this region type."""
-        # Get which taggers we need for this region type
-        needed_taggers = set(self.config[region_type])
-        
-        for tagger_name in needed_taggers - set(self.taggers.keys()):
-            try:
-                if tagger_name == 'wd14':
-                    model = timm.create_model("hf_hub:SmilingWolf/wd-vit-large-tagger-v3", pretrained=True) #TODO: Standardize name to use model name in config, also loading with timm here to match model_registry.py.
-                    #AutoModelForImageClassification.from_pretrained(WD14_MODEL_ID)
-                    self.taggers['wd14'] = WD14Tagger(
-                        model=model,
-                        config=self.config
-                    )
-                    
-                elif tagger_name == 'caption':
-                    model = Blip2ForConditionalGeneration.from_pretrained(BLIP2_MODEL_ID)
-                    self.taggers['caption'] = CaptionTagger(
-                        model=model,
-                        config=self.config
-                    )
-                    
-                elif tagger_name == 'orientation':
-                    model = AutoModelForImageClassification.from_pretrained(ORIENTATION_MODEL_ID)
-                    self.taggers['orientation'] = OrientationTagger(
-                        model=model,
-                        config=self.config
-                    )
-                    
-            except Exception as e:
-                logger.error(f"Failed to initialize {tagger_name} tagger: {e}", exc_info=True)
-                raise RuntimeError(f"Tagger initialization failed: {e}")
-    
-    async def tag_image(self, image_path: Path, region_type: str) -> Dict[str, List[TagResult]]:
-        """Run configured taggers for this region type.
+        # Convert blacklist to set for efficient lookups
+        self.blacklist = set(self.config.get('blacklist', []))
+
+    async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
+        """Generate WD14 tags for an image.
         
         Args:
-            image_path: Path to image to tag
-            region_type: Type of region (e.g., 'person', 'face')
+            image_path: Path to the image file
             
         Returns:
-            Dictionary mapping tagger names to their results
+            Dictionary mapping categories to lists of TagResults,
+            sorted by confidence. Categories typically include:
+            'general', 'character', 'copyright', 'artist'
             
         Raises:
             FileNotFoundError: If image file doesn't exist
             RuntimeError: If tagging fails
         """
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-            
-        # Ensure we have the taggers we need
-        await self._ensure_taggers_initialized(region_type)
-        
-        # Get list of taggers to run for this region type
-        taggers_to_run = self.config[region_type]
-        
-        results = {}
         try:
-            # Run each configured tagger
-            for tagger_name in taggers_to_run:
-                if tagger_name in self.taggers:
-                    tagger = self.taggers[tagger_name]
-                    results.update(await tagger.tag_image(image_path))
-                else:
-                    logger.warning(f"Tagger {tagger_name} not available")
-                    
+            # Use base class method to load and validate image
+            image = self._load_and_validate_image(image_path)
+            
+            # Generate tag predictions
+            with torch.inference_mode():
+                inputs = self.transform(image).unsqueeze(0)
+                outputs = self.model(inputs)
+                probs = torch.sigmoid(outputs.logits)[0]
+            
+            # Convert to numpy for easier processing
+            probs = probs.cpu().numpy()
+            
+            # Filter out blacklisted tags and get tags above threshold
+            tags_above_threshold = [
+                (label, float(prob), category)
+                for label, prob, category in zip(
+                    self.model.config.id2label.values(),
+                    probs,
+                    self.model.config.id2category.values()
+                )
+                if prob >= self.config['confidence']  # Changed to match config.yaml
+                and label.lower() not in self.blacklist  # Add blacklist filtering
+            ]
+            
+            # If we have fewer than min_tags, dynamically lower threshold
+            # but still respect blacklist
+            if len(tags_above_threshold) < self.config['min_tags']:
+                # Sort all predictions by confidence
+                all_predictions = [
+                    (label, float(prob), category)
+                    for label, prob, category in zip(
+                        self.model.config.id2label.values(),
+                        probs,
+                        self.model.config.id2category.values()
+                    )
+                    if label.lower() not in self.blacklist  # Respect blacklist even when lowering threshold
+                ]
+                all_predictions.sort(key=lambda x: x[1], reverse=True)
+                tags_above_threshold = all_predictions[:self.config['min_tags']]
+            
+            # Group by category
+            results: Dict[str, List[TagResult]] = {}
+            for label, confidence, category in tags_above_threshold:
+                if category not in results:
+                    results[category] = []
+                
+                if len(results[category]) < self.config['max_tags']:
+                    results[category].append(
+                        TagResult(
+                            label=label,
+                            confidence=confidence,
+                            category=category
+                        )
+                    )
+            
+            # Sort each category by confidence
+            for category in results:
+                results[category].sort(key=lambda x: x.confidence, reverse=True)
+                results[category] = results[category][:self.config['max_tags']]
+            
             return results
             
         except Exception as e:
-            logger.error(f"Tagging failed for {image_path}: {str(e)}", exc_info=True)
-            raise RuntimeError(f"Tagging failed: {str(e)}") from e
+            logger.error(f"WD14 tagging failed for {image_path}: {e}", exc_info=True)
+            raise RuntimeError(f"WD14 tagging failed: {e}")

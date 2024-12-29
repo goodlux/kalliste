@@ -5,22 +5,57 @@ from pathlib import Path
 import logging
 from PIL import Image, UnidentifiedImageError
 from ..types import TagResult
-
+from ..model.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 class BaseTagger(ABC):
-    """Base tagger class that all specific taggers should inherit from."""
+    """Base tagger class that all specific taggers should inherit from.
     
-    def __init__(self, model, config: Optional[Dict] = None):
+    This base class provides:
+    - Model initialization from registry
+    - Common image loading and validation
+    - Configuration management with defaults
+    - Standard interface for tagging
+    """
+    
+    def __init__(self, model_id: str, config: Optional[Dict] = None):
         """Initialize base tagger.
         
         Args:
-            model: Pre-initialized model (should already have device configured)
-            config: Optional configuration overrides
+            model_id: ID of the model in ModelRegistry to use for tagging
+            config: Optional configuration overrides for this tagger. Will be
+                   merged with get_default_config()
+        
+        Raises:
+            KeyError: If model_id not found in registry
+            RuntimeError: If models not initialized
         """
-        self.model = model
-        self.config = config or {}
+        # Get model and associated info from registry
+        model_info = ModelRegistry.get_model(model_id)
+        self.model = model_info["model"]
+        # Store any additional model components (transform, etc)
+        self.model_info = {k: v for k, v in model_info.items() if k != "model"}
+        
+        # Initialize configuration with defaults
+        self.config = self.get_default_config()
+        if config:
+            # Only update with provided config keys that exist in defaults
+            # This prevents accidentally adding unsupported config options
+            for key in self.config.keys():
+                if key in config:
+                    self.config[key] = config[key]
+
+    @classmethod
+    @abstractmethod
+    def get_default_config(cls) -> Dict:
+        """Get default configuration for this tagger.
+        
+        Returns:
+            Dictionary containing default configuration values
+            All possible config keys should be present with defaults
+        """
+        raise NotImplementedError("Taggers must implement get_default_config")
 
     def _load_and_validate_image(self, image_path: Union[str, Path]) -> Image.Image:
         """Load and validate image file.
@@ -78,7 +113,11 @@ class BaseTagger(ABC):
             image_path: Path to the image file
             
         Returns:
-            Dictionary mapping tag categories to lists of TagResults
+            Dictionary mapping categories to lists of TagResults
+            Each TagResult should have:
+            - label: str
+            - confidence: float
+            - category: str
         
         Raises:
             FileNotFoundError: If image file doesn't exist

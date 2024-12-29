@@ -12,38 +12,38 @@ logger = logging.getLogger(__name__)
 class CaptionTagger(BaseTagger):
     """Generates natural language captions for images using BLIP2 model."""
     
-    def __init__(
-        self,
-        model,
-        config: Optional[Dict] = None,
-        max_length: int = 100,          # Default max tokens
-        temperature: float = 1.0,        # Default temperature
-        repetition_penalty: float = 1.5  # Default repetition penalty
-    ):
+    # Default configuration
+    DEFAULT_MAX_LENGTH = 100
+    DEFAULT_TEMPERATURE = 1.0
+    DEFAULT_REPETITION_PENALTY = 1.5
+    
+    @classmethod
+    def get_default_config(cls) -> Dict:
+        """Get default configuration for BLIP2 caption tagger."""
+        return {
+            'max_length': cls.DEFAULT_MAX_LENGTH,
+            'temperature': cls.DEFAULT_TEMPERATURE,
+            'repetition_penalty': cls.DEFAULT_REPETITION_PENALTY
+        }
+
+    def __init__(self, config: Optional[Dict] = None):
         """Initialize CaptionTagger.
         
         Args:
-            model: Pre-initialized BLIP2 model
-            config: Optional configuration dictionary
-            max_length: Maximum caption length in tokens
-                Default: 100
-                Recommended range: 50-200
-            temperature: Generation temperature for sampling
-                Default: 1.0
-                Recommended range: 0.1-2.0
-                Higher values make output more diverse but less focused
-            repetition_penalty: Penalty for token repetition
-                Default: 1.5
-                Recommended range: 1.0-2.0
-                Higher values reduce word repetition
+            config: Optional configuration dictionary with keys:
+                max_length: Maximum caption length in tokens
+                    Default: 100
+                    Recommended range: 50-200
+                temperature: Generation temperature for sampling
+                    Default: 1.0
+                    Recommended range: 0.1-2.0
+                    Higher values make output more diverse but less focused
+                repetition_penalty: Penalty for token repetition
+                    Default: 1.5
+                    Recommended range: 1.0-2.0
+                    Higher values reduce word repetition
         """
-        super().__init__(model, config)
-        
-        # Get caption-specific config or use defaults
-        caption_config = self.config.get('caption', {})
-        self.max_length = caption_config.get('max_length', max_length)
-        self.temperature = caption_config.get('temperature', temperature)
-        self.repetition_penalty = caption_config.get('repetition_penalty', repetition_penalty)
+        super().__init__(model_id="blip2", config=config)
 
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
         """Generate a natural language caption for an image.
@@ -68,10 +68,10 @@ class CaptionTagger(BaseTagger):
                 inputs = self.model.processor(image, return_tensors="pt")
                 output = self.model.generate(
                     **inputs,
-                    max_new_tokens=self.max_length,
+                    max_new_tokens=self.config['max_length'],
                     do_sample=True,
-                    temperature=self.temperature,
-                    repetition_penalty=self.repetition_penalty
+                    temperature=self.config['temperature'],
+                    repetition_penalty=self.config['repetition_penalty']
                 )
                 
                 caption = self.model.processor.decode(output[0], skip_special_tokens=True)
