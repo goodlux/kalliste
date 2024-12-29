@@ -14,6 +14,8 @@ class YOLOFaceDetector(BaseDetector):
         """Initialize YOLO face detector with config."""
         super().__init__(config)
         self.model = ModelRegistry.get_model("yolo-face")["model"]
+        # Ensure model is in inference mode
+        self.model.eval()
     
     def detect(self, 
               image_path: Path,

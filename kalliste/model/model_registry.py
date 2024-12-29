@@ -58,7 +58,13 @@ class ModelRegistry:
         for model_name, model_config in MODELS["detection"].items():
             try:
                 model_path = YOLO_CACHE_DIR / model_config["file"]
-                model = YOLO(str(model_path))
+                # More explicit initialization with task specification
+                model = YOLO(str(model_path), task='detect')
+                
+                # Force model to CPU/GPU based on availability
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                model.to(device)
+                
                 cls._models[model_config["model_id"]] = {
                     "model": model,
                     "type": "detection"
