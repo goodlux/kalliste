@@ -1,20 +1,12 @@
-"""
-Model Registry for Kalliste
-
-Handles initialization and access to AI models.
-Models are initialized once and stored in the registry for reuse.
-Runtime parameters (like confidence thresholds) can be adjusted per-call.
-"""
-
 import asyncio
 import logging
-from typing import Any, Dict, Optional
 import timm
 import torch
 import torchvision.transforms as T
 from ultralytics import YOLO
+from typing import Dict, Any
 
-from .config import MODELS, YOLO_CACHE_DIR, HF_CACHE_DIR
+from ..config import MODELS, YOLO_CACHE_DIR
 from .model_download_manager import ModelDownloadManager
 
 logger = logging.getLogger(__name__)
@@ -22,15 +14,8 @@ logger = logging.getLogger(__name__)
 class ModelRegistry:
     """
     Singleton registry for initialized models.
-    
-    Models are initialized once when first needed and stored for reuse.
-    Each model can be configured at runtime without reinitialization.
-    
-    The registry maintains two types of models:
-    - Detection models (YOLO)
-    - Classification models (from HuggingFace)
+    Models are initialized once and stored for reuse.
     """
-    
     _instance = None
     _initialized = False
     _models: Dict[str, Any] = {}
@@ -88,7 +73,6 @@ class ModelRegistry:
         """Initialize all classification models."""
         for model_name, model_config in MODELS["classification"].items():
             try:
-                # Special handling for WD14 tagger which needs model and transform
                 if model_name == "wd14":
                     model = timm.create_model(
                         f"hf_hub:{model_config['hf_path']}", 
@@ -105,15 +89,9 @@ class ModelRegistry:
                         )
                     ])
                     
-                    # Load tags if specified
-                    tags = None
-                    if "selected_tags.csv" in model_config["files"]:
-                        tags = await cls._load_wd14_tags(model_config["hf_path"])
-                    
                     cls._models[model_config["model_id"]] = {
                         "model": model,
                         "transform": transform,
-                        "tags": tags,
                         "type": "classification"
                     }
                     
@@ -136,43 +114,9 @@ class ModelRegistry:
                 logger.error(f"Failed to initialize {model_name}: {e}")
                 raise
 
-    @staticmethod
-    async def _load_wd14_tags(model_path: str) -> list:
-        """Load WD14 tags from the tags file."""
-        import csv
-        from huggingface_hub import hf_hub_download
-        
-        try:
-            tags_path = hf_hub_download(
-                repo_id=model_path,
-                filename="selected_tags.csv",
-                cache_dir=HF_CACHE_DIR
-            )
-            
-            with open(tags_path, 'r') as f:
-                reader = csv.reader(f)
-                next(reader)  # Skip header
-                return [row[0] for row in reader]
-                
-        except Exception as e:
-            logger.error(f"Failed to load WD14 tags: {e}")
-            raise
-
     @classmethod
     def get_model(cls, model_id: str) -> Dict[str, Any]:
-        """
-        Get an initialized model by its ID.
-        
-        Args:
-            model_id: The model's identifier from its config
-            
-        Returns:
-            Dict containing the model and its associated data
-            
-        Raises:
-            RuntimeError: If models aren't initialized
-            KeyError: If model_id isn't found
-        """
+        """Get an initialized model by its ID."""
         if not cls._initialized:
             raise RuntimeError("Models not initialized. Call initialize() first.")
             
@@ -193,7 +137,7 @@ class ModelRegistry:
             
             cls._models.clear()
             cls._initialized = False
-            torch.cuda.empty_cache()  # Clear CUDA cache if used
+            torch.cuda.empty_cache()
             
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")

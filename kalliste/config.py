@@ -13,7 +13,7 @@ MODELS = {
     "detection": {
         "yolo": {
             "model_id": "yolo",
-            "file": "yolov11x.pt",
+            "file": "yolo11x.pt",
             "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt"
         },
         "yolo-face": {

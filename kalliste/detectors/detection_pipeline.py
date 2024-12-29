@@ -1,11 +1,12 @@
 """Detection pipeline for coordinating different detectors and configurations."""
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Set
 import logging
 from dataclasses import dataclass
 
 from .base import Region
 from .yolo_detector import YOLODetector
+from .yolo_face_detector import YOLOFaceDetector
 from .yolo_classes import YOLO_CLASSES, CLASS_GROUPS
 
 logger = logging.getLogger(__name__)
@@ -14,66 +15,63 @@ logger = logging.getLogger(__name__)
 class DetectionResult:
     """Container for detection results."""
     regions: List[Region]
-    detector_used: str
-    model_identifier: str
     detection_types: List[str]
 
 class DetectionPipeline:
     """Coordinates detection process based on configuration."""
     
+    def _get_yolo_class_ids(self, detection_types: List[str]) -> Dict[int, str]:
+        """Convert detection types to YOLO class IDs and maintain mapping back to type."""
+        class_mapping = {}  # maps class_id to detection_type
+        for det_type in detection_types:
+            if det_type in YOLO_CLASSES:
+                class_mapping[YOLO_CLASSES[det_type]] = det_type
+            elif det_type in CLASS_GROUPS:
+                for class_name in CLASS_GROUPS[det_type]:
+                    class_mapping[YOLO_CLASSES[class_name]] = det_type
+        return class_mapping
+    
     def detect(self, image_path: Path, config: Dict) -> DetectionResult:
-        """Run detection on an image using configuration.
-        
-        Args:
-            image_path: Path to image file
-            config: Detection configuration from batch
-        """
+        """Run detection on an image using configuration."""
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
             
         try:
-            # Get detection types from config
-            detection_types = list(config.keys() - {'target', 'device'})
-            logger.debug(f"Detection types from config: {detection_types}")
+            # Get detection types, ignoring 'target' which is handled elsewhere
+            detection_types = [k for k in config.keys() if k != 'target']
+            logger.debug(f"Requested detection types: {detection_types}")
             
-            # Check if detection types are YOLO-supported
-            yolo_types = []
-            for det_type in detection_types:
-                # Check direct classes
-                if det_type in YOLO_CLASSES:
-                    yolo_types.append(det_type)
-                # Check group classes
-                elif det_type in CLASS_GROUPS:
-                    yolo_types.extend(CLASS_GROUPS[det_type])
-                    
-            if not yolo_types:
-                raise ValueError(f"No supported detection types found in: {detection_types}")
-                
-            # Get detector settings for each type
-            detector_config = {
-                dtype: {
-                    'confidence': config[dtype].get('confidence', 0.5),
-                    'iou_threshold': config[dtype].get('iou_threshold', 0.45)
-                }
-                for dtype in yolo_types
-            }
-            logger.debug(f"Detector config: {detector_config}")
+            results = []
             
-            # Initialize YOLO detector
-            detector = YOLODetector(config)
+            # Handle face detection separately as it uses a specialized model
+            if 'face' in detection_types:
+                face_detector = YOLOFaceDetector(config)
+                results.extend(face_detector.detect(
+                    image_path=image_path,
+                    config=config.get('face', {})
+                ))
+                detection_types.remove('face')
             
-            # Run detection with config
-            regions = detector.detect(
-                image_path=image_path,
-                detection_types=yolo_types,
-                config=detector_config
-            )
+            # Handle remaining types that YOLO can detect
+            yolo_types = [t for t in detection_types if t in YOLO_CLASSES or t in CLASS_GROUPS]
+            if yolo_types:
+                class_mapping = self._get_yolo_class_ids(yolo_types)
+                detector = YOLODetector(config)
+                results.extend(detector.detect(
+                    image_path=image_path,
+                    class_ids=list(class_mapping.keys()),
+                    type_mapping=class_mapping,
+                    config={t: config[t] for t in yolo_types}
+                ))
+            
+            # Warn about any unsupported types
+            unsupported = set(detection_types) - {'face'} - set(YOLO_CLASSES.keys()) - set(CLASS_GROUPS.keys())
+            if unsupported:
+                logger.warning(f"Unsupported detection types: {unsupported}")
             
             return DetectionResult(
-                regions=regions,
-                detector_used='yolo',
-                model_identifier='yolov11x',
-                detection_types=yolo_types
+                regions=results,
+                detection_types=detection_types
             )
             
         except Exception as e:
