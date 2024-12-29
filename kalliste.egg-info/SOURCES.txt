@@ -15,6 +15,7 @@ kalliste/detectors/detection_pipeline.py
 kalliste/detectors/unicorn_detector.py
 kalliste/detectors/yolo_classes.py
 kalliste/detectors/yolo_detector.py
+kalliste/detectors/yolo_face_detector.py
 kalliste/image/__init__.py
 kalliste/image/batch.py
 kalliste/image/batch_processor.py

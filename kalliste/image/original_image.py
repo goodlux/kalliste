@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional, Dict
 from ..types import  ProcessingStatus
 from .cropped_image import CroppedImage
-from ..detectors.base import DetectionConfig, Region
+from ..detectors.base import  Region
 from ..detectors.detection_pipeline import DetectionPipeline, DetectionResult
 from ..model.model_registry import ModelRegistry
 import asyncio
