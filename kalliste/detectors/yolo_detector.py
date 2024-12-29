@@ -1,9 +1,8 @@
 """YOLO detector implementation."""
 from pathlib import Path
-from typing import List, Dict, Set, Optional
+from typing import List, Dict
 import logging
 from .base import BaseDetector, Region
-from .yolo_classes import YOLO_CLASSES, CLASS_GROUPS
 from ..model.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
@@ -11,71 +10,62 @@ logger = logging.getLogger(__name__)
 class YOLODetector(BaseDetector):
     """YOLO-based object detector."""
     
+    # Ultralytics defaults
+    DEFAULT_CONFIDENCE_THRESHOLD = 0.25
+    DEFAULT_NMS_THRESHOLD = 0.7
+    
     def __init__(self, config: Dict):
         """Initialize YOLO detector with config."""
         super().__init__(config)
         self.model = ModelRegistry.get_model("yolo")["model"]
-        # Ensure model is in inference mode
         self.model.eval()
     
     def detect(self, 
-              image_path: Path, 
-              detection_types: List[str],
-              config: Dict) -> List[Region]:
+              image_path: Path,
+              classes: List[int],
+              confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+              nms_threshold: float = DEFAULT_NMS_THRESHOLD) -> List[Region]:
         """Run detection on an image.
         
         Args:
             image_path: Path to image file
-            detection_types: List of types to detect
-            config: Configuration for each detection type
+            classes: List of COCO class IDs to detect
+            confidence_threshold: Detection confidence threshold
+            nms_threshold: Non-maximum suppression threshold
+            
+        Returns:
+            List[Region]: List of detected regions with type and index
         """
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-            
+        self._validate_image_path(image_path)
+        
         try:
-            results = []
-            
-            # Convert detection types to YOLO class indices
-            class_ids = set()
-            for det_type in detection_types:
-                if det_type in YOLO_CLASSES:
-                    class_ids.add(YOLO_CLASSES[det_type])
-                elif det_type in CLASS_GROUPS:
-                    for class_name in CLASS_GROUPS[det_type]:
-                        class_ids.add(YOLO_CLASSES[class_name])
-            
-            # Get the highest confidence and lowest IOU threshold across all types
-            confidence = min(cfg['confidence'] for cfg in config.values())
-            iou_threshold = min(cfg['iou_threshold'] for cfg in config.values())
-            
-            # Run inference
+            # Run inference with Ultralytics YOLO model
             pred = self.model(
                 str(image_path),
-                conf=confidence,
-                iou=iou_threshold,
-                classes=list(class_ids)  # Filter for requested classes
+                conf=confidence_threshold,
+                iou=nms_threshold,
+                classes=classes
             )[0]
             
-            # Convert to Region objects
-            for result in pred.boxes:
+            # Convert predictions to Region objects
+            regions = []
+            for idx, result in enumerate(pred.boxes):
                 cls_id = int(result.cls[0])
-                det_type = next(
-                    k for k, v in YOLO_CLASSES.items() 
-                    if v == cls_id and k in detection_types
-                )
                 xyxy = result.xyxy[0].cpu().numpy()
+                
                 region = Region(
                     x1=int(xyxy[0]),
                     y1=int(xyxy[1]),
                     x2=int(xyxy[2]),
                     y2=int(xyxy[3]),
-                    region_type=det_type,
+                    region_type=str(cls_id),  # We'll let pipeline map this to readable names
+                    region_index=idx,
                     confidence=float(result.conf[0])
                 )
-                results.append(region)
+                regions.append(region)
             
-            return results
+            return regions
             
         except Exception as e:
-            logger.error(f"Detection failed: {e}", exc_info=True)
+            logger.error(f"Detection failed: {str(e)}")
             raise

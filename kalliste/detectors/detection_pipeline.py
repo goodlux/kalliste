@@ -1,13 +1,13 @@
 """Detection pipeline for coordinating different detectors and configurations."""
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict
 import logging
 from dataclasses import dataclass
 
 from .base import Region
 from .yolo_detector import YOLODetector
 from .yolo_face_detector import YOLOFaceDetector
-from .yolo_classes import YOLO_CLASSES, CLASS_GROUPS
+from .yolo_classes import YOLO_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -20,58 +20,76 @@ class DetectionResult:
 class DetectionPipeline:
     """Coordinates detection process based on configuration."""
     
-    def _get_yolo_class_ids(self, detection_types: List[str]) -> Dict[int, str]:
-        """Convert detection types to YOLO class IDs and maintain mapping back to type."""
-        class_mapping = {}  # maps class_id to detection_type
-        for det_type in detection_types:
-            if det_type in YOLO_CLASSES:
-                class_mapping[YOLO_CLASSES[det_type]] = det_type
-            elif det_type in CLASS_GROUPS:
-                for class_name in CLASS_GROUPS[det_type]:
-                    class_mapping[YOLO_CLASSES[class_name]] = det_type
-        return class_mapping
-    
     def detect(self, image_path: Path, config: Dict) -> DetectionResult:
-        """Run detection on an image using configuration."""
+        """Run detection on an image using configuration.
+        
+        Args:
+            image_path: Path to image file
+            config: Detection configuration with detection types and thresholds
+                   e.g. {
+                       'face': {'confidence_threshold': 0.6, 'nms_threshold': 0.7},
+                       'person': {'confidence_threshold': 0.5, 'nms_threshold': 0.7}
+                   }
+        """
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
             
         try:
-            # Get detection types, ignoring 'target' which is handled elsewhere
-            detection_types = [k for k in config.keys() if k != 'target']
+            results = []
+            detection_types = list(config.keys())
             logger.debug(f"Requested detection types: {detection_types}")
             
-            results = []
-            
-            # Handle face detection separately as it uses a specialized model
+            # Handle face detection if requested
             if 'face' in detection_types:
                 face_detector = YOLOFaceDetector(config)
+                face_config = config['face']
                 results.extend(face_detector.detect(
                     image_path=image_path,
-                    config=config.get('face', {})
+                    confidence_threshold=face_config.get('confidence_threshold', YOLOFaceDetector.DEFAULT_CONFIDENCE_THRESHOLD),
+                    nms_threshold=face_config.get('nms_threshold', YOLOFaceDetector.DEFAULT_NMS_THRESHOLD)
                 ))
                 detection_types.remove('face')
             
-            # Handle remaining types that YOLO can detect
-            yolo_types = [t for t in detection_types if t in YOLO_CLASSES or t in CLASS_GROUPS]
+            # Handle YOLO detections for remaining types
+            yolo_types = [t for t in detection_types if t in YOLO_CLASSES]
             if yolo_types:
-                class_mapping = self._get_yolo_class_ids(yolo_types)
-                detector = YOLODetector(config)
-                results.extend(detector.detect(
+                yolo_detector = YOLODetector(config)
+                # Convert types to class IDs
+                class_ids = [YOLO_CLASSES[t] for t in yolo_types]
+                
+                # Get lowest thresholds from any type's config
+                confidence_threshold = min(
+                    config[t].get('confidence_threshold', YOLODetector.DEFAULT_CONFIDENCE_THRESHOLD)
+                    for t in yolo_types
+                )
+                nms_threshold = min(
+                    config[t].get('nms_threshold', YOLODetector.DEFAULT_NMS_THRESHOLD) 
+                    for t in yolo_types
+                )
+                
+                # Run YOLO detection
+                yolo_regions = yolo_detector.detect(
                     image_path=image_path,
-                    class_ids=list(class_mapping.keys()),
-                    type_mapping=class_mapping,
-                    config={t: config[t] for t in yolo_types}
-                ))
+                    classes=class_ids,
+                    confidence_threshold=confidence_threshold,
+                    nms_threshold=nms_threshold
+                )
+                
+                # Map class IDs back to type names
+                class_id_to_type = {v: k for k, v in YOLO_CLASSES.items()}
+                for region in yolo_regions:
+                    region.region_type = class_id_to_type[int(region.region_type)]
+                
+                results.extend(yolo_regions)
             
             # Warn about any unsupported types
-            unsupported = set(detection_types) - {'face'} - set(YOLO_CLASSES.keys()) - set(CLASS_GROUPS.keys())
+            unsupported = set(detection_types) - {'face'} - set(YOLO_CLASSES.keys())
             if unsupported:
                 logger.warning(f"Unsupported detection types: {unsupported}")
             
             return DetectionResult(
                 regions=results,
-                detection_types=detection_types
+                detection_types=[r.region_type for r in results]
             )
             
         except Exception as e:

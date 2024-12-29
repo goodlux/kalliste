@@ -42,7 +42,7 @@ class BatchProcessor:
             logger.info("Initializing model registry")
             await ModelRegistry.initialize()
             
-            breakpoint()  # Break here to verify ModelDownloadManager and ModelRegistry worked
+            #breakpoint()  # Break here to verify ModelDownloadManager and ModelRegistry worked
             
             # Scan for batches (subdirectories)
             logger.info(f"Scanning for batches in {self.input_root}")

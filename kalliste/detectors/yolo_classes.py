@@ -5,7 +5,6 @@
 YOLO_CLASSES = {
     # People and faces
     'person': 0,
-    'face': 1,
     
 #     # Animals
 #     'bird': 14,

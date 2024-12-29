@@ -1,11 +1,9 @@
 """Base classes and utilities for detection framework."""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Tuple, Dict, Optional, Set
+from typing import List, Optional, Set
 from pathlib import Path
 import logging
-import numpy as np
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -13,100 +11,36 @@ logger = logging.getLogger(__name__)
 class Region:
     """A detected region in an image."""
     x1: int
-    y1: int
+    y1: int 
     x2: int
     y2: int
     region_type: str
-    confidence: Optional[float] = None
-    rotation: Optional[float] = None
-    name: Optional[str] = None
+    region_index: int
+    confidence: float
     tags: Set[str] = field(default_factory=set)
-
-    def get_dimensions(self) -> Tuple[int, int]:
-        """Get width and height of region."""
-        return (self.x2 - self.x1, self.y2 - self.y1)
-
-    def get_area(self) -> int:
-        """Get area of region in pixels."""
-        width, height = self.get_dimensions()
-        return width * height
-    
-    def get_aspect_ratio(self) -> float:
-        """Get aspect ratio (width/height) of region."""
-        width, height = self.get_dimensions()
-        return width / height
-    
-    def get_center(self) -> Tuple[int, int]:
-        """Get center point of region."""
-        return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
-    
-    def expand_to_ratio(self, target_ratio: float, max_dims: Tuple[int, int]) -> 'Region':
-        """Expand region to match target aspect ratio while maintaining center."""
-        current_width, current_height = self.get_dimensions()
-        center_x, center_y = self.get_center()
-        max_width, max_height = max_dims
-        
-        current_ratio = current_width / current_height
-        
-        if current_ratio < target_ratio:
-            # Need to increase width
-            new_width = int(current_height * target_ratio)
-            new_height = current_height
-        else:
-            # Need to increase height
-            new_width = current_width
-            new_height = int(current_width / target_ratio)
-            
-        # Calculate new coordinates
-        half_width = new_width // 2
-        half_height = new_height // 2
-        
-        x1 = max(0, center_x - half_width)
-        y1 = max(0, center_y - half_height)
-        x2 = min(max_width, center_x + half_width)
-        y2 = min(max_height, center_y + half_height)
-        
-        return Region(
-            x1=x1, y1=y1, x2=x2, y2=y2,
-            region_type=self.region_type,
-            confidence=self.confidence,
-            rotation=self.rotation,
-            name=self.name,
-            tags=self.tags.copy()
-        )
 
 class BaseDetector(ABC):
     """Base class for all detectors."""
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         """Initialize detector with configuration."""
         self.config = config
-        self.model = None  # Will be set by child classes
+        self.model = None  # Will be set by child classes via ModelRegistry
     
     def _validate_image_path(self, image_path: Path) -> None:
         """Validate image path exists."""
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
 
-    def _convert_yolo_boxes_to_regions(self, 
-                                     boxes, 
-                                     region_type: str) -> List[Region]:
-        """Convert YOLO detection boxes to Region objects."""
-        regions = []
-        for result in boxes:
-            xyxy = result.xyxy[0].cpu().numpy()
-            region = Region(
-                x1=int(xyxy[0]),
-                y1=int(xyxy[1]),
-                x2=int(xyxy[2]),
-                y2=int(xyxy[3]),
-                region_type=region_type,
-                confidence=float(result.conf[0])
-            )
-            regions.append(region)
-        return regions
-
     @abstractmethod
     def detect(self, image_path: Path, **kwargs) -> List[Region]:
-        """Run detection on an image."""
+        """Run detection on an image.
+        
+        Args:
+            image_path: Path to image file
+            **kwargs: Additional detector-specific parameters
+            
+        Returns:
+            List[Region]: List of detected regions with type and index
+        """
         pass

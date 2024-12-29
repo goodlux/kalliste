@@ -49,9 +49,10 @@ class ModelRegistry:
                 
                 # Initialize models by type
                 await cls._initialize_detection_models()
-                await cls._initialize_classification_models()
-                await cls._initialize_captioning_models()
-                
+                await cls._initialize_classification_models()  # WD14
+                await cls._initialize_captioning_models()      # BLIP2
+                await cls._initialize_orientation_models()     # Orientation
+
                 cls._initialized = True
                 logger.info("Model registry initialization complete")
                 
@@ -139,6 +140,34 @@ class ModelRegistry:
             except Exception as e:
                 logger.error(f"Failed to initialize captioning model {model_name}: {e}")
                 raise
+
+    @classmethod
+    async def _initialize_orientation_models(cls) -> None: # TODO: This was low effort way to fix orientation model loading. Should probably rework this. 
+        """Initialize orientation detection models."""
+        from transformers import AutoModelForImageClassification, AutoFeatureExtractor
+        
+        for model_name, model_config in MODELS["classification"].items():
+            try:
+                if model_name != "orientation":
+                    continue  # Skip non-orientation models
+                    
+                model = AutoModelForImageClassification.from_pretrained(
+                    model_config['hf_path']
+                ).to(cls.device)
+                feature_extractor = AutoFeatureExtractor.from_pretrained(model_config['hf_path'])
+                model.eval()
+                
+                cls._models[model_config["model_id"]] = {
+                    "model": model,
+                    "feature_extractor": feature_extractor,
+                    "type": "orientation"
+                }
+                logger.info(f"Initialized orientation model: {model_name}")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize orientation model {model_name}: {e}")
+                raise
+
 
     @classmethod
     def get_model(cls, model_id: str) -> Dict[str, Any]:

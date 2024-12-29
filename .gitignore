@@ -1,3 +1,4 @@
+# test image directories
 test_images_input/
 test_images_output/
 test_images_storage/
@@ -6,8 +7,14 @@ test_images_storage/
 __pycache__/
 *.pyc
 .DS_Store
-weights/*
 
-weights_bak/*
 
-yolo11x.pt
+# Model files
+*.pt
+
+# Logs
+*.log
+
+# Virtual Environment
+.venv/
+venv/
