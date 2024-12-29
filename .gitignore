@@ -9,3 +9,5 @@ __pycache__/
 weights/*
 
 weights_bak/*
+
+yolo11x.pt
