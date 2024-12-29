@@ -36,7 +36,7 @@ class ModelDownloadManager:
                 "*.onnx",          # ONNX models
                 "*.msgpack",       # JAX/Flax serialized models
                 "flax_model.*",    # Flax model files
-                "*.safetensors",   # Alternative to PyTorch's .bin format
+                "*.bin",           # Use safetensors instead
                 "tf_model.*",      # TensorFlow models
                 "*.md",            # Documentation
                 ".git*",           # Git files

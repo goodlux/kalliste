@@ -34,15 +34,23 @@ class ModelRegistry:
                 return
                 
             try:
+                # Determine device once
+                if torch.cuda.is_available():
+                    cls.device = 'cuda'
+                elif torch.backends.mps.is_available():
+                    cls.device = 'mps'
+                else:
+                    cls.device = 'cpu'
+                logger.info(f"Using device: {cls.device}")
+                
                 # First ensure all models are downloaded
                 downloader = ModelDownloadManager()
                 await downloader.download_all()
                 
-                # Initialize detection models
+                # Initialize models by type
                 await cls._initialize_detection_models()
-                
-                # Initialize classification models
                 await cls._initialize_classification_models()
+                await cls._initialize_captioning_models()
                 
                 cls._initialized = True
                 logger.info("Model registry initialization complete")
@@ -54,16 +62,12 @@ class ModelRegistry:
 
     @classmethod
     async def _initialize_detection_models(cls) -> None:
-        """Initialize all detection (YOLO) models."""
+        """Initialize YOLO detection models."""
         for model_name, model_config in MODELS["detection"].items():
             try:
                 model_path = YOLO_CACHE_DIR / model_config["file"]
-                # More explicit initialization with task specification
                 model = YOLO(str(model_path), task='detect')
-                
-                # Force model to CPU/GPU based on availability
-                device = 'cuda' if torch.cuda.is_available() else 'cpu'
-                model.to(device)
+                model.to(cls.device)
                 
                 cls._models[model_config["model_id"]] = {
                     "model": model,
@@ -71,53 +75,69 @@ class ModelRegistry:
                 }
                 logger.info(f"Initialized detection model: {model_name}")
             except Exception as e:
-                logger.error(f"Failed to initialize {model_name}: {e}")
+                logger.error(f"Failed to initialize detection model {model_name}: {e}")
                 raise
 
     @classmethod
     async def _initialize_classification_models(cls) -> None:
-        """Initialize all classification models."""
+        """Initialize image classification models (WD14 tagger)."""
         for model_name, model_config in MODELS["classification"].items():
             try:
-                if model_name == "wd14":
-                    model = timm.create_model(
-                        f"hf_hub:{model_config['hf_path']}", 
-                        pretrained=True
+                if model_name != "wd14":
+                    continue  # Skip non-WD14 models
+                    
+                model = timm.create_model(
+                    f"hf_hub:{model_config['hf_path']}", 
+                    pretrained=True
+                ).to(cls.device)
+                model.eval()
+                
+                transform = T.Compose([
+                    T.Resize((448, 448)),
+                    T.ToTensor(),
+                    T.Normalize(
+                        mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]
                     )
-                    model.eval()
-                    
-                    transform = T.Compose([
-                        T.Resize((448, 448)),
-                        T.ToTensor(),
-                        T.Normalize(
-                            mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]
-                        )
-                    ])
-                    
-                    cls._models[model_config["model_id"]] = {
-                        "model": model,
-                        "transform": transform,
-                        "type": "classification"
-                    }
-                    
-                else:
-                    # Generic classification model initialization
-                    model = timm.create_model(
-                        f"hf_hub:{model_config['hf_path']}", 
-                        pretrained=True
-                    )
-                    model.eval()
-                    
-                    cls._models[model_config["model_id"]] = {
-                        "model": model,
-                        "type": "classification"
-                    }
-                    
+                ])
+                
+                cls._models[model_config["model_id"]] = {
+                    "model": model,
+                    "transform": transform,
+                    "type": "classification"
+                }
                 logger.info(f"Initialized classification model: {model_name}")
                 
             except Exception as e:
-                logger.error(f"Failed to initialize {model_name}: {e}")
+                logger.error(f"Failed to initialize classification model {model_name}: {e}")
+                raise
+
+    @classmethod
+    async def _initialize_captioning_models(cls) -> None:
+        """Initialize BLIP2 and other captioning/generation models."""
+        from transformers import Blip2ForConditionalGeneration, Blip2Processor
+        
+        for model_name, model_config in MODELS["classification"].items():
+            try:
+                if model_name != "blip2":
+                    continue  # Skip non-BLIP2 models
+                    
+                model = Blip2ForConditionalGeneration.from_pretrained(
+                    model_config['hf_path'],
+                    torch_dtype=torch.float16 if cls.device == "cuda" else torch.float32,
+                ).to(cls.device)
+                processor = Blip2Processor.from_pretrained(model_config['hf_path'])
+                model.eval()
+                
+                cls._models[model_config["model_id"]] = {
+                    "model": model,
+                    "processor": processor,
+                    "type": "captioning"
+                }
+                logger.info(f"Initialized captioning model: {model_name}")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize captioning model {model_name}: {e}")
                 raise
 
     @classmethod
