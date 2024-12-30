@@ -7,6 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.logging import RichHandler as BaseRichHandler
 import logging
+from functools import wraps
 
 # Create a rich console for error display
 console = Console(stderr=True)
@@ -26,39 +27,49 @@ class RichHandler(BaseRichHandler):
             # Choose style based on level
             if record.levelno >= logging.ERROR:
                 level_style = "bold red"
-                # For errors, use the full error formatter
-                if record.exc_info:
-                    format_error(record.exc_info[1])
-                    return
+                # For errors, only show the error message here
+                # The traceback will be handled by format_error
+                msg = record.getMessage()
             elif record.levelno >= logging.WARNING:
                 level_style = "yellow"
+                msg = record.getMessage()
             elif record.levelno >= logging.INFO:
                 level_style = "green"
+                msg = record.getMessage()
             else:
                 level_style = "blue"
+                msg = record.getMessage()
             
-            # Format the message
-            msg = f"{location} [{level_style}]{record.levelname}[/] {record.getMessage()}"
-            
-            # Print message
-            self.console.print(msg)
+            # Format and print the message
+            formatted_msg = f"{location} [{level_style}]{record.levelname}[/] {msg}"
+            self.console.print(formatted_msg)
                 
         except Exception:
             self.handleError(record)
 
-def format_error(e: Exception, title: Optional[str] = None) -> None:
-    """Format an exception with rich styling."""
+def format_error(e: Exception, title: Optional[str] = None, show_locals: bool = False) -> None:
+    """Format an exception with rich styling.
+    
+    Args:
+        e: The exception to format
+        title: Optional custom title for the error panel
+        show_locals: Whether to show local variables in the traceback
+    """
     panel_title = title or f"[red bold]{e.__class__.__name__}[/]"
+    
+    # Get the most relevant parts of the traceback
     tb = Traceback.from_exception(
         type(e),
         e,
         e.__traceback__,
-        show_locals=True,
+        show_locals=show_locals,  # Only show locals when explicitly requested
         width=100,
-        extra_lines=3,
+        extra_lines=1,  # Reduced from 3
         theme="monokai",
         word_wrap=True
     )
+    
+    # Create a panel with the error message
     error_text = Text(str(e))
     error_panel = Panel(
         error_text,
@@ -66,8 +77,35 @@ def format_error(e: Exception, title: Optional[str] = None) -> None:
         border_style="red",
         padding=(1, 2)
     )
+    
+    # Print both the error message and traceback
     console.print(error_panel)
     console.print(tb)
+
+def handle_exceptions(logger=None, show_locals=False):
+    """Decorator for consistent exception handling.
+    
+    Args:
+        logger: Optional logger instance to use
+        show_locals: Whether to show local variables in traceback
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                # Log the error if we have a logger
+                if logger:
+                    logger.error(str(e))
+                
+                # Format and display the error
+                format_error(e, show_locals=show_locals)
+                
+                # Re-raise the exception
+                raise
+        return wrapper
+    return decorator
 
 # Configure root logger with file and line numbers
 logging.basicConfig(
