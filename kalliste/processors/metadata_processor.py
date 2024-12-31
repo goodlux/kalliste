@@ -1,13 +1,10 @@
 """Metadata processing and copying for Kalliste images."""
-
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import logging
 import json
-
 logger = logging.getLogger(__name__)
-
 class MetadataProcessor:
     """Handles metadata operations for Kalliste images."""
     
@@ -22,93 +19,58 @@ class MetadataProcessor:
         kalliste_metadata: Dict[str, any]
     ) -> bool:
         try:
-            # Get path to our kalliste config
             config_path = Path(__file__).parent.parent.parent / "config" / "exiftool" / "kalliste.config"
-
-            # First try just writing a test tag
-            logger.info("Attempting to write test tag...")
-            test_cmd = [
-                "exiftool",
-                "-config", str(config_path),
-                "-v",
-                "-kalliste:TestTag=test",
-                str(dest_path)
-            ]
             
-            result = subprocess.run(
-                test_cmd,
-                capture_output=True,
-                text=True
-            )
-            
-            logger.info("Test tag write output:")
-            logger.info(f"STDOUT: {result.stdout}")
-            logger.info(f"STDERR: {result.stderr}")
-
-            # Try reading all kalliste tags
-            logger.info("\nAttempting to read kalliste tags...")
-            read_cmd = [
-                "exiftool",
-                "-config", str(config_path),
-                "-v",
-                "-kalliste:all",
-                str(dest_path)
-            ]
-            
-            result = subprocess.run(
-                read_cmd,
-                capture_output=True,
-                text=True
-            )
-            
-            logger.info("Tag read output:")
-            logger.info(f"STDOUT: {result.stdout}")
-            logger.info(f"STDERR: {result.stderr}")
-
-            # Now proceed with original metadata copying
-            logger.info("\nProceeding with full metadata copy...")
+            # Build exiftool command
             cmd = [
                 "exiftool",
                 "-config", str(config_path),
-                "-v",
                 "-TagsFromFile", str(source_path),
                 "-all:all",
                 "-ImageSize=",
                 "-PixelDimensions=",
             ]
             
-            # Add Kalliste namespace tags
-            for key, value in kalliste_metadata.items():
-                if value is not None:
-                    if isinstance(value, (list, tuple)):
-                        value = ",".join(str(v) for v in value)
-                    cmd.extend([f"-kalliste:{key}={value}"])
-
-            # TEST CODE - Remove after verifying tag writing works
-            cmd.extend([
-                "-kalliste:TestTag=TestTag",
-                "-kalliste:TestTagConfidence=0.95"
-            ])
+            # Map our internal metadata to XMP-Kalliste namespace tags
+            if "tags" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:Tags=" + ",".join(kalliste_metadata["tags"])])
+                
+            if "tag_confidences" in kalliste_metadata:
+                confidences = [str(conf) for conf in kalliste_metadata["tag_confidences"].values()]
+                cmd.extend(["-XMP-Kalliste:TagConfidences=" + ",".join(confidences)])
+                
+            if "tag_sources" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:TagSources=" + ",".join(kalliste_metadata["tag_sources"].values())])
+                
+            if "region_type" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:DetectionType=" + kalliste_metadata["region_type"]])
+                
+            if "confidence" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:DetectionConfidence=" + str(kalliste_metadata["confidence"])])
+                
+            if "process_version" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:ProcessingVersion=" + kalliste_metadata["process_version"]])
+                
+            if "original_path" in kalliste_metadata:
+                cmd.extend(["-XMP-Kalliste:OriginalPath=" + str(kalliste_metadata["original_path"])])
             
             # Add destination path
             cmd.append(str(dest_path))
+            cmd.append("-overwrite_original")
             
+            # Run exiftool
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True
             )
             
-            logger.info("Full metadata copy output:")
-            logger.info(f"STDOUT: {result.stdout}")
-            logger.info(f"STDERR: {result.stderr}")
-            
             if result.returncode != 0:
                 logger.error(f"Exiftool error: {result.stderr}")
                 return False
-                    
-            return True
                 
+            return True
+            
         except Exception as e:
             logger.error(f"Failed to copy metadata: {e}")
             return False
@@ -156,7 +118,6 @@ class MetadataProcessor:
         except Exception as e:
             logger.error(f"Failed to extract metadata: {e}")
             return None
-
     def generate_chroma_metadata(
         self, 
         kalliste_metadata: Dict,
