@@ -1,16 +1,15 @@
 """Image captioning using BLIP2 model."""
-from typing import Dict, List, Union, Optional
-from pathlib import Path
+from typing import Dict, List, Optional
+from PIL import Image
 import logging
 import torch
-from PIL import Image
 
-from .base_tagger import BaseTagger
+from .AbstractTagger import AbstractTagger
 from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
-class CaptionTagger(BaseTagger):
+class CaptionTagger(AbstractTagger):
     """Generates natural language captions using BLIP2."""
     
     DEFAULT_MAX_LENGTH = 100
@@ -29,18 +28,19 @@ class CaptionTagger(BaseTagger):
             'repetition_penalty': cls.DEFAULT_REPETITION_PENALTY
         }
 
-    async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Generate a caption for an image."""
+    async def tag_pillow_image(self, image: Image.Image) -> Dict[str, List[TagResult]]:
+        """Generate a caption for a PIL Image."""
         try:
-            image = Image.open(image_path)
+            logger.debug("Preparing image for BLIP2 processor")
             inputs = self.processor(image, return_tensors="pt")
             
-            # Move inputs to model device if needed
+            logger.debug(f"Moving inputs to device: {self.model.device}")
             inputs = {
                 k: v.to(self.model.device) if isinstance(v, torch.Tensor) else v 
                 for k, v in inputs.items()
             }
             
+            logger.debug("Generating caption")
             with torch.inference_mode():
                 output = self.model.generate(
                     **inputs,
@@ -50,18 +50,22 @@ class CaptionTagger(BaseTagger):
                     repetition_penalty=self.config['repetition_penalty']
                 )
                 
-                caption = self.processor.decode(output[0], skip_special_tokens=True)
+                caption = self.processor.decode(output[0], skip_special_tokens=True).strip()
+                logger.debug(f"Generated caption: {caption}")
             
-            return {
-                'caption': [
-                    TagResult(
-                        label=caption.strip(),
-                        confidence=1.0,
-                        category='caption'
-                    )
-                ]
-            }
-            
+                # Always create a tag result with the caption
+                result = {
+                    'caption': [
+                        TagResult(
+                            label=caption,
+                            confidence=1.0,  # We could adjust this based on model confidence if needed
+                            category='caption'
+                        )
+                    ]
+                }
+                logger.debug(f"Returning caption result: {result}")
+                return result
+                
         except Exception as e:
-            logger.error(f"Caption generation failed for {image_path}: {e}")
-            raise RuntimeError(f"Caption generation failed: {e}")
+            logger.error(f"Caption generation failed: {str(e)}", exc_info=True)
+            return {'caption': []}

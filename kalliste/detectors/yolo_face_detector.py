@@ -2,7 +2,8 @@
 from pathlib import Path
 from typing import List, Dict
 import logging
-from .base import BaseDetector, Region
+from .base import BaseDetector
+from ..region import Region  # Updated import to use canonical Region
 from ..model.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class YOLOFaceDetector(BaseDetector):
             nms_threshold: Non-maximum suppression threshold
             
         Returns:
-            List[Region]: List of detected face regions with index
+            List[Region]: List of detected face regions
         """
         self._validate_image_path(image_path)
         
@@ -46,7 +47,7 @@ class YOLOFaceDetector(BaseDetector):
             
             # Convert predictions to Region objects
             regions = []
-            for idx, result in enumerate(pred.boxes):
+            for result in pred.boxes:
                 xyxy = result.xyxy[0].cpu().numpy()
                 
                 region = Region(
@@ -55,7 +56,6 @@ class YOLOFaceDetector(BaseDetector):
                     x2=int(xyxy[2]),
                     y2=int(xyxy[3]),
                     region_type='face',
-                    region_index=idx,
                     confidence=float(result.conf[0])
                 )
                 regions.append(region)

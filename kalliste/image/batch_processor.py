@@ -124,19 +124,31 @@ class BatchProcessor:
 
         logger.info("Starting batch processing")
         self.status = ProcessingStatus.PROCESSING
-        
+
         if not self.batches:
             logger.warning("No batches to process")
             self.status = ProcessingStatus.COMPLETE
             return
-        
+
         errors = []
+        total_images = 0
         try:
+            # First pass to count total images
+            for batch in self.batches:
+                batch.scan_for_images()
+                total_images += len(batch.images)
+            
+            logger.info(f"Found {total_images} total images across {len(self.batches)} batches")
+            
             # Process batches one at a time
+            processed_images = 0
             for batch in self.batches:
                 error = await self.process_batch(batch)
                 if error:
                     errors.append((batch.input_path, error))
+                else:
+                    processed_images += len(batch.images)
+                    logger.info(f"Progress: {processed_images}/{total_images} images processed")
             
             # Handle any errors that occurred
             if errors:
@@ -149,7 +161,7 @@ class BatchProcessor:
                 )
             
             self.status = ProcessingStatus.COMPLETE
-            logger.info("All batches processed successfully")
+            logger.info(f"All batches processed successfully: {total_images} images in {len(self.batches)} batches")
             
         except Exception as e:
             self.status = ProcessingStatus.ERROR
@@ -165,13 +177,3 @@ class BatchProcessor:
             except Exception as e:
                 logger.error("Failed to clean up model registry", exc_info=True)
                 # Don't raise cleanup errors - they're less important than processing errors
-
-    async def on_batch_complete(self, batch_path: Path):
-        """Called when a batch signals completion"""
-        logger.info(f"Batch {batch_path} processing complete")
-
-    async def cleanup(self):
-        """Cleanup resources."""
-        if self._initialized:
-            await ModelRegistry.cleanup()
-            self._initialized = False

@@ -38,25 +38,35 @@ class Batch:
         return config
 
     def scan_for_images(self):
-        """Scan input directory for images."""
+        """Scan input directory for supported image formats."""
         logger.info(f"Scanning for images in {self.input_path}")
         
+        # Base formats - we'll handle case variations
+        base_formats = ['.jpg', '.jpeg', '.png', '.dng']
+        
         try:
-            for file in self.input_path.glob('*.png'):
-                try:
-                    original_image = OriginalImage(
-                        source_path=file,
-                        output_dir=self.output_path,
-                        config=self.config
-                    )
-                    self.images.append(original_image)
-                    
-                except Exception as e:
-                    logger.error(f"Failed to create OriginalImage for {file}", exc_info=True)
-                    continue
+            found_images = []
+            # Use rglob to get all files and filter by extension
+            for file in self.input_path.rglob('*'):
+                if file.suffix.lower() in base_formats:
+                    try:
+                        original_image = OriginalImage(
+                            source_path=file,
+                            output_dir=self.output_path,
+                            config=self.config
+                        )
+                        found_images.append(original_image)
+                        logger.debug(f"Added image: {file}")
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to create OriginalImage for {file}", exc_info=True)
+                        continue
+            
+            self.images = found_images
                     
             if not self.images:
-                logger.warning(f"No PNG images found in {self.input_path}")
+                logger.warning(f"No supported images found in {self.input_path}")
+                logger.info(f"Supported formats (case insensitive): {', '.join(base_formats)}")
                 
             logger.info(f"Found {len(self.images)} images")
                     

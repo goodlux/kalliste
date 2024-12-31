@@ -1,9 +1,10 @@
 """Handles processing of original images and creation of derived crops."""
 from pathlib import Path
 from typing import List, Optional, Dict
-from ..types import  ProcessingStatus
+
+from ..types import ProcessingStatus
 from .cropped_image import CroppedImage
-from ..detectors.base import  Region
+from ..region import Region  # Updated import
 from ..detectors.detection_pipeline import DetectionPipeline, DetectionResult
 from ..model.model_registry import ModelRegistry
 import asyncio
@@ -19,19 +20,24 @@ class OriginalImage:
         
     async def process(self):
         """Process the image."""
-        # Pass relevant config to detection pipeline
-        detection_pipeline = DetectionPipeline()
-        results = detection_pipeline.detect(
-            self.source_path,
-            config=self.config['detector']  # Pass detector config
-        )
-        
-        # Create cropped images with relevant config
-        for region in results.regions:
-            cropped = CroppedImage(
+        try:
+            # Pass relevant config to detection pipeline
+            detection_pipeline = DetectionPipeline()
+            results = detection_pipeline.detect(
                 self.source_path,
-                self.output_dir,
-                region,
-                config=self.config  # Pass full config for tagger access
+                config=self.config['detector']  # Pass detector config
             )
-            await cropped.process()
+            
+            # Create cropped images with relevant config
+            for region in results.regions:
+                cropped = CroppedImage(
+                    self.source_path,
+                    self.output_dir,
+                    region,
+                    config=self.config  # Pass full config for tagger access
+                )
+                await cropped.process()
+                
+        except Exception as e:
+            logger.error(f"Failed to process image {self.source_path}: {e}")
+            raise

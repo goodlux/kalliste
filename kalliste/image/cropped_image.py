@@ -1,35 +1,19 @@
 """Handles cropped image processing for detected regions."""
 from pathlib import Path
 from typing import List, Optional, Dict
-
-import subprocess
-import logging
-from ..types import KallisteTag, ProcessingStatus, TagResult
-from ..detectors.base import Region
-
-from ..processors.metadata_processor import MetadataProcessor
 import uuid
-# kalliste/image/cropped_image.py
-
+import logging
 from PIL import Image
-import uuid
-import logging
-from ..processors.image_resizer import SDXLResizer
+
+from ..region import Region, RegionExpander, RegionDownsizer
 from ..processors.metadata_processor import MetadataProcessor
-from ..types import TagResult
 from ..taggers.tagger_pipeline import TaggerPipeline
+from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
 class CroppedImage:
     """Processes and manages cropped images from detections."""
-    
-    # Expansion factors for different detection types
-    EXPANSION_FACTORS = {
-        'face': 1.4,  # 40% expansion
-        'person': 1.1,  # 10% expansion
-        'default': 1.05  # 5% default expansion
-    }
     
     def __init__(self, 
                 source_path: Path, 
@@ -37,15 +21,7 @@ class CroppedImage:
                 region: Region, 
                 config: Dict,
                 tagger_pipeline: Optional[TaggerPipeline] = None):
-        """Initialize CroppedImage.
-        
-        Args:
-            source_path: Path to original image
-            output_dir: Directory to save cropped image
-            region: Region to crop
-            config: Configuration dictionary
-            tagger_pipeline: Optional TaggerPipeline instance (can be shared)
-        """
+        """Initialize CroppedImage."""
         self.source_path = source_path
         self.output_dir = output_dir
         self.region = region
@@ -53,7 +29,6 @@ class CroppedImage:
         self.kalliste_tags = []
         
         # Initialize processors
-        self.resizer = SDXLResizer()
         self.metadata_processor = MetadataProcessor()
         self.tagger_pipeline = tagger_pipeline or TaggerPipeline(config)
         
@@ -61,81 +36,98 @@ class CroppedImage:
         """Process the cropped region.
         
         Flow:
-        1. Crop region (already properly padded and ratio'd)
-        2. Resize to SDXL dimensions and save
-        3. Run taggers on saved image
-        4. Copy metadata and add Kalliste tags
+        1. Expand region to fit SDXL ratios
+        2. Validate size
+        3. Crop image
+        4. Run taggers on cropped PIL Image
+        5. Resize to SDXL
+        6. Save
+        7. Add metadata with tags
         """
         try:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Crop, resize, and save
-            final_path = self._crop_resize_and_save()
-            
-            # Run taggers on the saved image
-            await self._run_taggers(final_path)
-            
-            # Copy metadata from original and add Kalliste tags
-            self._copy_metadata(final_path)
-            
+            with Image.open(self.source_path) as img:
+                logger.info(f"Opened image {self.source_path}")
+                
+                # 1. Expand region to fit SDXL ratios
+                logger.info("Expanding region to SDXL ratios")
+                expanded_region = RegionExpander.expand_region_to_sdxl_ratios(
+                    self.region,
+                    img.width,
+                    img.height
+                )
+                logger.info(f"Expanded region: {expanded_region}")
+                
+                # 2. Validate size
+                logger.info("Validating size")
+                if not RegionDownsizer.is_valid_size(expanded_region, img):
+                    logger.info(f"Region too small for SDXL, skipping: {expanded_region}")
+                    return None
+                
+                # 3. Crop image
+                logger.info("Cropping image")
+                cropped = img.crop((
+                    expanded_region.x1,
+                    expanded_region.y1,
+                    expanded_region.x2,
+                    expanded_region.y2
+                ))
+                logger.info(f"Cropped image size: {cropped.size}")
+                
+                # 4. Run taggers on PIL Image directly
+                logger.info("Running taggers")
+                tag_results = await self.tagger_pipeline.tag_pillow_image(
+                    image=cropped,
+                    region_type=self.region.region_type
+                )
+                logger.info(f"Got tag results: {tag_results}")
+                self.kalliste_tags = self._process_tag_results(tag_results)
+                
+                # 5. Resize to SDXL
+                logger.info("Resizing to SDXL")
+                sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
+                logger.info(f"Resized image size: {sdxl_image.size}")
+                
+                # 6. Save
+                logger.info("Saving image")
+                output_filename = f"{self.source_path.stem}_{self.region.region_type}_{uuid.uuid4()}.png"
+                output_path = self.output_dir / output_filename
+                sdxl_image.save(output_path, "PNG", optimize=True)
+                logger.info(f"Saved to {output_path}")
+                
+                # 7. Add metadata
+                logger.info("Adding metadata")
+                self._add_metadata(output_path)
+                logger.info("Metadata added")
+                
+                return output_path
+                
         except Exception as e:
-            logger.error(f"Failed to process cropped image: {e}", exc_info=True)
+            logger.error(f"Failed to process cropped image: {e}")
             raise
-
-    async def _run_taggers(self, image_path: Path):
-        """Run configured taggers and store results."""
-        try:
-            # Run taggers
-            tag_results = await self.tagger_pipeline.tag_image(
-                image_path=image_path,
-                region_type=self.region.region_type
-            )
             
-            # Process and store tag results
-            for tagger_name, results in tag_results.items():
-                for tag in results:
-                    if isinstance(tag, dict):  # TagResult object
-                        self.kalliste_tags.append({
-                            'label': tag['label'],
-                            'confidence': tag.get('confidence'),
-                            'category': tag.get('category'),
-                            'tagger': tagger_name
-                        })
-                        
-            logger.info(f"Generated {len(self.kalliste_tags)} tags for {image_path}")
-            
-        except Exception as e:
-            logger.error(f"Failed to run taggers: {e}", exc_info=True)
-            # We might want to continue processing even if tagging fails
-            return []
-
-    def _crop_resize_and_save(self) -> Path:
-        """Crop region, resize to SDXL dimensions, and save."""
-        with Image.open(self.source_path) as img:
-            # Crop
-            cropped = img.crop((
-                self.region.x1, self.region.y1,
-                self.region.x2, self.region.y2
-            ))
-            
-            # Generate output filename
-            original_name = self.source_path.stem  # Gets filename without extension
-            filename = f"{original_name}_{self.region.region_type}_{uuid.uuid4()}.png"
-            final_path = self.output_dir / filename
-            
-            # Resize and save using SDXLResizer
-            self.resizer.resize_image(cropped, final_path)
-            
-            return final_path
-
-    def _copy_metadata(self, final_path: Path):
-        """Copy metadata from original and add Kalliste-specific tags."""
-        # Prepare Kalliste metadata
+    def _process_tag_results(self, tag_results: Dict[str, List[TagResult]]) -> List[Dict]:
+        """Convert tagger results to Kalliste tag format."""
+        kalliste_tags = []
+        for tagger_name, results in tag_results.items():
+            for tag in results:
+                if isinstance(tag, dict):
+                    kalliste_tags.append({
+                        'label': tag['label'],
+                        'confidence': tag.get('confidence'),
+                        'category': tag.get('category'),
+                        'tagger': tagger_name
+                    })
+        return kalliste_tags
+        
+    def _add_metadata(self, image_path: Path):
+        """Add Kalliste metadata including tags to the image."""
         kalliste_metadata = {
             'region_type': self.region.region_type,
             'confidence': self.region.confidence,
             'original_path': str(self.source_path),
-            'process_version': '1.0',  # or from config
+            'process_version': '1.0',
             'tags': [tag['label'] for tag in self.kalliste_tags],
             'tag_confidences': {
                 tag['label']: tag['confidence'] 
@@ -154,12 +146,8 @@ class CroppedImage:
             }
         }
         
-        # Copy metadata and add Kalliste tags
         success = self.metadata_processor.copy_metadata(
             source_path=self.source_path,
-            dest_path=final_path,
+            dest_path=image_path,
             kalliste_metadata=kalliste_metadata
         )
-        
-        if not success:
-            logger.warning(f"Failed to copy metadata for {final_path}")

@@ -21,66 +21,94 @@ class MetadataProcessor:
         dest_path: Union[str, Path],
         kalliste_metadata: Dict[str, any]
     ) -> bool:
-        """
-        Copy metadata from source to destination image and add Kalliste-specific tags.
-        
-        Args:
-            source_path: Path to source image
-            dest_path: Path to destination image
-            kalliste_metadata: Dictionary of Kalliste-specific metadata to add
-                Expected keys:
-                - photoshoot_id
-                - photoshoot_date
-                - people
-                - caption 
-                - wd_tags
-                - lr_tags
-                - orientation_tag
-                - other_tags
-                - all_tags
-                - source_media
-                - crop_type
-                - process_version
-                - lr_rating
-                - lr_label
-                
-        Returns:
-            bool: True if successful, False otherwise
-        """
         try:
-            # Build exiftool command
+            # Get path to our kalliste config
+            config_path = Path(__file__).parent.parent.parent / "config" / "exiftool" / "kalliste.config"
+
+            # First try just writing a test tag
+            logger.info("Attempting to write test tag...")
+            test_cmd = [
+                "exiftool",
+                "-config", str(config_path),
+                "-v",
+                "-kalliste:TestTag=test",
+                str(dest_path)
+            ]
+            
+            result = subprocess.run(
+                test_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            logger.info("Test tag write output:")
+            logger.info(f"STDOUT: {result.stdout}")
+            logger.info(f"STDERR: {result.stderr}")
+
+            # Try reading all kalliste tags
+            logger.info("\nAttempting to read kalliste tags...")
+            read_cmd = [
+                "exiftool",
+                "-config", str(config_path),
+                "-v",
+                "-kalliste:all",
+                str(dest_path)
+            ]
+            
+            result = subprocess.run(
+                read_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            logger.info("Tag read output:")
+            logger.info(f"STDOUT: {result.stdout}")
+            logger.info(f"STDERR: {result.stderr}")
+
+            # Now proceed with original metadata copying
+            logger.info("\nProceeding with full metadata copy...")
             cmd = [
                 "exiftool",
+                "-config", str(config_path),
+                "-v",
                 "-TagsFromFile", str(source_path),
-                "-all:all",                # Copy all metadata
-                "-ImageSize=",             # Clear size-related tags
+                "-all:all",
+                "-ImageSize=",
                 "-PixelDimensions=",
             ]
             
             # Add Kalliste namespace tags
             for key, value in kalliste_metadata.items():
                 if value is not None:
-                    # Handle lists by joining with commas
                     if isinstance(value, (list, tuple)):
                         value = ",".join(str(v) for v in value)
-                    cmd.extend([f"-XMP-kalliste:{key}={value}"])
+                    cmd.extend([f"-kalliste:{key}={value}"])
+
+            # TEST CODE - Remove after verifying tag writing works
+            cmd.extend([
+                "-kalliste:TestTag=TestTag",
+                "-kalliste:TestTagConfidence=0.95"
+            ])
             
             # Add destination path
             cmd.append(str(dest_path))
             
-            # Run exiftool
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True
             )
             
+            logger.info("Full metadata copy output:")
+            logger.info(f"STDOUT: {result.stdout}")
+            logger.info(f"STDERR: {result.stderr}")
+            
             if result.returncode != 0:
                 logger.error(f"Exiftool error: {result.stderr}")
                 return False
-                
+                    
             return True
-            
+                
         except Exception as e:
             logger.error(f"Failed to copy metadata: {e}")
             return False

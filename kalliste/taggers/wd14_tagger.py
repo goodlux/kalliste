@@ -1,16 +1,15 @@
 """Image tagging using WD14 model."""
-from typing import Dict, List, Union, Optional
-from pathlib import Path
+from typing import Dict, List, Optional
+from PIL import Image
 import logging
 import torch
-from PIL import Image
 
-from .base_tagger import BaseTagger
+from .AbstractTagger import AbstractTagger
 from ..types import TagResult
 
 logger = logging.getLogger(__name__)
 
-class WD14Tagger(BaseTagger):
+class WD14Tagger(AbstractTagger):
     """Tags images using WD14 model for anime/illustration-style tags."""
     
     # Default configuration
@@ -30,21 +29,19 @@ class WD14Tagger(BaseTagger):
     def __init__(self, config: Optional[Dict] = None):
         """Initialize WD14Tagger."""
         super().__init__(model_id="wd14", config=config)
-        
-        
-    async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Generate WD14 tags for an image."""
+
+    async def tag_pillow_image(self, image: Image.Image) -> Dict[str, List[TagResult]]:
+        """Generate WD14 tags for a PIL Image."""
         try:
-            # Load and process image
-            image = Image.open(image_path)
-            # The processor returns {'pixel_values': tensor} but we just want the tensor
+            # Process image
             inputs = self.processor(images=image, return_tensors="pt")
             image_tensor = inputs['pixel_values']
             
-            # Run inference - pass tensor directly to model
+            # Run inference
             with torch.inference_mode():
                 outputs = self.model(image_tensor)
                 probs = torch.sigmoid(outputs)[0]
+
             # Get id2label and id2category from registry stored values
             id2label = self.model_info["id2label"]
             id2category = self.model_info["id2category"]
@@ -96,5 +93,5 @@ class WD14Tagger(BaseTagger):
             return results
             
         except Exception as e:
-            logger.error(f"WD14 tagging failed for {image_path}: {e}")
+            logger.error(f"WD14 tagging failed: {e}")
             raise RuntimeError(f"WD14 tagging failed: {e}")

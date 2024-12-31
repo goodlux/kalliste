@@ -2,7 +2,9 @@
 from pathlib import Path
 from typing import List, Dict
 import logging
-from .base import BaseDetector, Region
+from ..region import Region
+from .base import BaseDetector
+from ..region import Region  # Updated import to use canonical Region
 from ..model.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ class YOLODetector(BaseDetector):
             nms_threshold: Non-maximum suppression threshold
             
         Returns:
-            List[Region]: List of detected regions with type and index
+            List[Region]: List of detected regions with type
         """
         self._validate_image_path(image_path)
         
@@ -49,7 +51,7 @@ class YOLODetector(BaseDetector):
             
             # Convert predictions to Region objects
             regions = []
-            for idx, result in enumerate(pred.boxes):
+            for result in pred.boxes:
                 cls_id = int(result.cls[0])
                 xyxy = result.xyxy[0].cpu().numpy()
                 
@@ -59,7 +61,6 @@ class YOLODetector(BaseDetector):
                     x2=int(xyxy[2]),
                     y2=int(xyxy[3]),
                     region_type=str(cls_id),  # We'll let pipeline map this to readable names
-                    region_index=idx,
                     confidence=float(result.conf[0])
                 )
                 regions.append(region)

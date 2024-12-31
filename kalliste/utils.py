@@ -107,9 +107,27 @@ def handle_exceptions(logger=None, show_locals=False):
         return wrapper
     return decorator
 
-# Configure root logger with file and line numbers
+# Configure root logger
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    handlers=[RichHandler()]  # Add our handler by default
+    handlers=[RichHandler()]
 )
+
+# Enable detailed DEBUG logging for taggers
+tagger_logger = logging.getLogger('kalliste.taggers')
+tagger_logger.setLevel(logging.DEBUG)
+
+# Create a special debug handler for taggers
+debug_handler = RichHandler(level=logging.DEBUG)
+debug_formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - [%(filename)s:%(lineno)d] - %(levelname)s - %(message)s'
+)
+debug_handler.setFormatter(debug_formatter)
+
+# Remove any existing handlers and add our new debug handler
+tagger_logger.handlers = []
+tagger_logger.addHandler(debug_handler)
+
+# Prevent debug messages from propagating up to parent loggers
+tagger_logger.propagate = False

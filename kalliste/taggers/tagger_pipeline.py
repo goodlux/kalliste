@@ -2,8 +2,9 @@
 from typing import Dict, List, Optional
 from pathlib import Path
 import logging
+from PIL import Image
 
-from .base_tagger import BaseTagger
+from .AbstractTagger import AbstractTagger
 from .wd14_tagger import WD14Tagger
 from .caption_tagger import CaptionTagger
 from .orientation_tagger import OrientationTagger
@@ -34,7 +35,7 @@ class TaggerPipeline:
                 Should contain tagger-specific configs and type mappings
         """
         self.config = config
-        self.taggers: Dict[str, BaseTagger] = {}
+        self.taggers: Dict[str, AbstractTagger] = {}
         
     def _ensure_tagger_initialized(self, tagger_name: str) -> None:
         """Initialize a specific tagger if not already initialized.
@@ -62,8 +63,68 @@ class TaggerPipeline:
                 logger.error(f"Failed to initialize {tagger_name} tagger: {e}", exc_info=True)
                 raise RuntimeError(f"Tagger initialization failed: {e}")
     
+    async def tag_pillow_image(self, image: Image.Image, region_type: str) -> Dict[str, List[TagResult]]:
+        """Run configured taggers for this region type using a PIL Image."""
+        # Get list of taggers to run for this region type
+        taggers_to_run = self.config.get(region_type)
+        if not taggers_to_run:
+            raise ValueError(f"No taggers configured for region type: {region_type}")
+        
+        results = {}
+        try:
+            # Initialize and run each configured tagger
+            for tagger_name in taggers_to_run:
+                if tagger_name in self.TAGGER_CLASSES:
+                    # Ensure tagger is initialized
+                    self._ensure_tagger_initialized(tagger_name)
+                    
+                    # Run tagger
+                    logger.debug(f"Running {tagger_name} tagger")
+                    tagger_results = await self.taggers[tagger_name].tag_pillow_image(image)
+                    
+                    # Log individual tagger results
+                    for category, tags in tagger_results.items():
+                        if tags:  # Only log if we have tags
+                            tag_details = [
+                                f"{tag.label}({tag.confidence:.2f})" 
+                                for tag in tags
+                            ]
+                            logger.debug(f"{tagger_name} {category} results: {tag_details}")
+                    
+                    results.update(tagger_results)
+                else:
+                    logger.warning(f"Unsupported tagger requested: {tagger_name}")
+            
+            # Log final combined results
+            combined_results = []
+            for category, tags in results.items():
+                if tags:  # Only include non-empty results
+                    if category == 'caption':
+                        # Special formatting for captions
+                        formatted = f"{category}: \"{tags[0].label}\""
+                    else:
+                        # Format other tags with confidence
+                        formatted = f"{category}: " + ", ".join(
+                            f"{tag.label}({tag.confidence:.2f})"
+                            for tag in tags
+                        )
+                    combined_results.append(formatted)
+                    
+            if combined_results:
+                logger.info("Tagger results:")
+                for result in combined_results:
+                    logger.info(f"  {result}")
+            else:
+                logger.warning("No tag results generated")
+                    
+            return results
+            
+        except Exception as e:
+            logger.error(f"Tagging failed: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Tagging failed: {str(e)}") from e
+            
     async def tag_image(self, image_path: Path, region_type: str) -> Dict[str, List[TagResult]]:
-        """Run configured taggers for this region type.
+        """Run configured taggers for this region type using an image file.
         
         Args:
             image_path: Path to image to tag
@@ -80,27 +141,5 @@ class TaggerPipeline:
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
             
-        # Get list of taggers to run for this region type
-        taggers_to_run = self.config.get(region_type)
-        if not taggers_to_run:
-            raise ValueError(f"No taggers configured for region type: {region_type}")
-        
-        results = {}
-        try:
-            # Initialize and run each configured tagger
-            for tagger_name in taggers_to_run:
-                if tagger_name in self.TAGGER_CLASSES:
-                    # Ensure tagger is initialized
-                    self._ensure_tagger_initialized(tagger_name)
-                    
-                    # Run tagger
-                    tagger_results = await self.taggers[tagger_name].tag_image(image_path)
-                    results.update(tagger_results)
-                else:
-                    logger.warning(f"Unsupported tagger requested: {tagger_name}")
-                    
-            return results
-            
-        except Exception as e:
-            logger.error(f"Tagging failed for {image_path}: {str(e)}", exc_info=True)
-            raise RuntimeError(f"Tagging failed: {str(e)}") from e
+        with Image.open(image_path) as img:
+            return await self.tag_pillow_image(img, region_type)

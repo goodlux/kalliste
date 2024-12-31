@@ -18,3 +18,7 @@ __pycache__/
 # Virtual Environment
 .venv/
 venv/
+
+exiftest/
+
+

@@ -6,7 +6,7 @@ from typing import List
 from PIL import Image, ImageDraw
 
 from kalliste.processors.crop_processor import CropProcessor
-from kalliste.models.exported_image import ExportedImage
+from kalliste.region.region import ExportedImage
 from config.config import YOLO_WEIGHTS
 
 def setup_processor(person_model_path: str, face_model_path: str) -> CropProcessor:

@@ -1,4 +1,4 @@
-"""Base class for all Kalliste image taggers."""
+"""Abstract base class for all Kalliste image taggers."""
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union, Optional
 from pathlib import Path
@@ -9,11 +9,11 @@ from ..model.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
-class BaseTagger(ABC):
-    """Base tagger class that all specific taggers should inherit from."""
+class AbstractTagger(ABC):
+    """Abstract base class that all specific taggers should inherit from."""
     
     def __init__(self, model_id: str, config: Optional[Dict] = None):
-        """Initialize base tagger.
+        """Initialize tagger.
         
         Args:
             model_id: ID of the model in ModelRegistry to use for tagging
@@ -41,12 +41,24 @@ class BaseTagger(ABC):
         """Get default configuration for this tagger."""
         raise NotImplementedError("Taggers must implement get_default_config")
 
-    @abstractmethod
     async def tag_image(self, image_path: Union[str, Path]) -> Dict[str, List[TagResult]]:
-        """Generate tags for an image.
+        """Generate tags for an image file.
         
         Args:
             image_path: Path to the image file
+            
+        Returns:
+            Dictionary mapping categories to lists of TagResults
+        """
+        with Image.open(image_path) as img:
+            return await self.tag_pillow_image(img)
+            
+    @abstractmethod
+    async def tag_pillow_image(self, image: Image.Image) -> Dict[str, List[TagResult]]:
+        """Generate tags for a PIL Image.
+        
+        Args:
+            image: PIL Image to tag
             
         Returns:
             Dictionary mapping categories to lists of TagResults
