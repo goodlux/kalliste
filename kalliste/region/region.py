@@ -1,4 +1,4 @@
-"""Represents an image exported from Lightroom with its metadata."""
+"""Represents a detected region in an image."""
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Set
 from dataclasses import dataclass, field
@@ -16,23 +16,19 @@ class Region:
     confidence: Optional[float] = None
     rotation: Optional[float] = None  # For face regions from LR
     name: Optional[str] = None        # Person name from LR
-    tags: Set[str] = field(default_factory=set)
+    tags: Dict[str, str] = field(default_factory=dict)  # key: value pairs
+
+    def add_tag(self, tag_name: str, value: str) -> None:
+        """Add a tag with its value."""
+        self.tags[tag_name] = value
+    
+    def get_tag(self, tag_name: str) -> Optional[str]:
+        """Get a tag's value if it exists."""
+        return self.tags.get(tag_name)
 
     def get_dimensions(self) -> tuple[int, int]:
         """Get width and height of region."""
         return (self.x2 - self.x1, self.y2 - self.y1)
-    
-    def add_tag(self, tag: str) -> None:
-        """Add a tag to the region."""
-        self.tags.add(tag)
-    
-    def remove_tag(self, tag: str) -> None:
-        """Remove a tag from the region."""
-        self.tags.discard(tag)
-
-    def has_tag(self, tag: str) -> bool:
-        """Check if region has a specific tag."""
-        return tag in self.tags
 
     @classmethod
     def from_lightroom_face(cls, metadata: Dict) -> Optional['Region']:
@@ -83,7 +79,7 @@ class Region:
             
             # Add SDXL tag if dimensions are sufficient
             if x2 - x1 >= 1024 and y2 - y1 >= 1024:
-                region.add_tag('SDXL')
+                region.add_tag('SDXL', 'true')
                 return region
             
             return None  # Skip regions that are too small

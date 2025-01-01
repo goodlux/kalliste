@@ -23,21 +23,60 @@ class MetadataProcessor:
     ) -> bool:
         """
         Copy metadata from source to destination image and add Kalliste-specific tags.
+        Also writes a companion .txt file with tag information.
         """
         try:
-            config_path = "/Users/rob/repos/kalliste/config/exiftool/kalliste.config"
+            logger.error("Starting metadata copy")
             
-            # Build exiftool command with just source metadata copy and our test tag
+            # Get region object from metadata
+            region = kalliste_metadata.get('region')
+            if not region:
+                logger.error("No region provided in metadata")
+                return False
+
+            logger.error(f"Got region with tags: {region.tags}")
+            
+            # Write text file first
+            txt_path = str(dest_path).rsplit('.', 1)[0] + '.txt'
+            logger.error(f"Will write text file to: {txt_path}")
+            
+            # Format text file content using internal tag names
+            content = [
+                "ballerinaLux",
+                region.get_tag("PersonName", ""),
+                region.get_tag("Caption", ""),
+                region.get_tag("OrientationTag", ""),
+                "[LR_TagsTBD]",
+                region.get_tag("Wd14Tags", "")
+            ]
+            
+            txt_content = ", ".join(content)
+            logger.error(f"Text content will be: {txt_content}")
+            
+            # Write text file
+            with open(txt_path, 'w') as f:
+                f.write(txt_content)
+            logger.error(f"Wrote text file to {txt_path}")
+
+            # Build exiftool command
             cmd = [
                 "exiftool",
-                "-config", str(config_path),
                 "-TagsFromFile", str(source_path),
                 "-all:all",
-                "-XMP-kalliste:kallisteTest1=DummyValue1",
-                "-XMP-kalliste:kallisteTest2=DummyValue2",
-                "-XMP-kalliste:kallisteTest3=DummyValue3",
-                "-XMP-kalliste:kallisteTest4=DummyValue4",
             ]
+            
+            # Add Kalliste XMP tags from region tags with Kalliste prefix
+            tag_mapping = {
+                "PersonName": "KallistePersonName",
+                "Caption": "KallisteCaption",
+                "OrientationTag": "KallisteOrientationTag",
+                "Wd14Tags": "KallisteWd14Tags",
+            }
+            
+            for tag_name, value in region.tags.items():
+                if tag_name in tag_mapping:
+                    xmp_tag = tag_mapping[tag_name]
+                    cmd.extend([f"-XMP-Kalliste:{xmp_tag}={value}"])
             
             # Add destination path and overwrite flag
             cmd.extend([str(dest_path), "-overwrite_original"])
@@ -62,5 +101,5 @@ class MetadataProcessor:
             return True
                 
         except Exception as e:
-            logger.error(f"Failed to copy metadata: {str(e)}", exc_info=True)
+            logger.error(f"Failed to process metadata: {str(e)}")
             return False
