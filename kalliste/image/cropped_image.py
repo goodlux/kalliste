@@ -10,6 +10,7 @@ from ..taggers.tagger_pipeline import TaggerPipeline
 from ..types import TagResult
 from .caption_file_writer import CaptionFileWriter
 from .exif_writer import ExifWriter
+from ..tag.kalliste_tag import  KallisteStringTag, KallisteBagTag
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class CroppedImage:
                 
                 # Log processed kalliste_tags
                 logger.info("Processed kalliste_tags:")
-                for tag_name, tag_values in self.kalliste_tags.items():
+                for tag_name, tag_values in self.region.kalliste_tags.items():
                     logger.info(f"  {tag_name}: {tag_values}")
                 
                 logger.info("Resizing to SDXL")
@@ -108,37 +109,56 @@ class CroppedImage:
                     logger.info(f"  All orientations: {orientations}")
                     # Get highest confidence orientation
                     highest_conf = max(orientations, key=lambda x: x.confidence)
-                    orientation_tag = highest_conf.label.lower()
-                    logger.info(f"  Selected highest confidence: {highest_conf}")
-                    logger.info(f"  Final orientation tag: {orientation_tag}")
-                    self.region.add_tag("KallisteOrientationTag", orientation_tag)
+                    orientation_tag = KallisteStringTag(
+                        "KallisteOrientationTag",
+                        highest_conf.label.lower()
+                    )
+                    self.region.add_tag(orientation_tag)
                     
-                    # Save raw orientation data
-                    raw_orientations = [f"{tag.label}({tag.confidence:.2f})" for tag in orientations]
-                    self.region.add_tag("KallisteRawOrientationData", set(raw_orientations))
+                    # Save raw orientation data as bag
+                    raw_orientations = {
+                        f"{tag.label}({tag.confidence:.2f})" 
+                        for tag in orientations
+                    }
+                    raw_tag = KallisteBagTag(
+                        "KallisteRawOrientationData",
+                        raw_orientations
+                    )
+                    self.region.add_tag(raw_tag)
             
             # Process wd14 tags (category 0)
             if '0' in tag_results:
                 logger.info("Processing wd14 tags:")
                 # Get tags without confidences for SDXL
-                wd14_tags = {tag.label for tag in tag_results['0']}  # Using set directly
+                wd14_tags = {tag.label for tag in tag_results['0']}
                 logger.info(f"  Raw wd14 tags: {tag_results['0']}")
                 logger.info(f"  Processed wd14 tags: {wd14_tags}")
-                self.region.add_tag("KallisteWd14Tags", wd14_tags)
                 
-                # Save raw WD14 data with confidences
-                raw_wd14 = {f"{tag.label}({tag.confidence:.2f})" for tag in tag_results['0']}
-                self.region.add_tag("KallisteRawWd14Tags", raw_wd14)
+                tag = KallisteBagTag("KallisteWd14Tags", wd14_tags)
+                self.region.add_tag(tag)
+                
+                # Save raw WD14 data with confidences as bag
+                raw_wd14 = {
+                    f"{tag.label}({tag.confidence:.2f})" 
+                    for tag in tag_results['0']
+                }
+                raw_tag = KallisteBagTag("KallisteRawWd14Tags", raw_wd14)
+                self.region.add_tag(raw_tag)
             
             # Process caption
             if 'caption' in tag_results and tag_results['caption']:
                 logger.info("Processing caption:")
                 caption = tag_results['caption'][0].label
                 logger.info(f"  Caption: {caption}")
-                self.region.add_tag("KallisteCaption", caption)
+                caption_tag = KallisteStringTag("KallisteCaption", caption)
+                self.region.add_tag(caption_tag)
 
             # Add original path
-            self.region.add_tag("KallisteOriginalPath", str(self.source_path))
+            path_tag = KallisteStringTag(
+                "KallisteOriginalPath", 
+                str(self.source_path)
+            )
+            self.region.add_tag(path_tag)
 
         except Exception as e:
             logger.error(f"Error processing tag results: {e}")

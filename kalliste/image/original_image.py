@@ -11,6 +11,11 @@ from .cropped_image import CroppedImage
 from ..region import Region, RegionMatcher
 from ..detectors.detection_pipeline import DetectionPipeline, DetectionResult
 from ..model.model_registry import ModelRegistry
+from ..tag.kalliste_tag import (
+    KallisteStringTag,
+    KallisteDateTag,
+    KallisteRealTag
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,23 +26,6 @@ class OriginalImage:
         self.source_path = source_path
         self.output_dir = output_dir
         self.config = config
-
-    def _prepare_kalliste_tags(self, region_name: Optional[str] = None) -> Dict[str, Set[str]]:
-        """Prepare kalliste tags for the cropped image."""
-        kalliste_tags: Dict[str, Set[str]] = {}
-        
-        # Add person name if we have one
-        if region_name:
-            kalliste_tags["KallistePersonName"] = {region_name}
-        
-        # Get photoshoot ID from parent folder name
-        photoshoot_id = self.source_path.parent.name
-        kalliste_tags["KallistePhotoshootId"] = {photoshoot_id}
-        
-        # Add original file path
-        kalliste_tags["KallisteOriginalFilePath"] = {str(self.source_path.absolute())}
-        
-        return kalliste_tags
 
     def _extract_lr_face_metadata(self) -> List[Dict[str, any]]:
         """Extract Lightroom face metadata from image using exiftool."""
@@ -100,6 +88,42 @@ class OriginalImage:
             logger.error(f"Failed to extract Lightroom metadata: {e}")
             return []
 
+    def _add_base_tags_to_region(self, region: Region) -> None:
+        """Add basic metadata tags to a region."""
+        try:
+            # Add photoshoot ID from parent folder name
+            photoshoot_tag = KallisteStringTag(
+                "KallistePhotoshootId", 
+                self.source_path.parent.name
+            )
+            region.add_tag(photoshoot_tag)
+
+            # Add original file path
+            path_tag = KallisteStringTag(
+                "KallisteOriginalFilePath", 
+                str(self.source_path.absolute())
+            )
+            region.add_tag(path_tag)
+
+            # Add region type
+            region_type_tag = KallisteStringTag(
+                "KallisteRegionType",
+                region.region_type
+            )
+            region.add_tag(region_type_tag)
+
+            # Add confidence if present
+            if region.confidence is not None:
+                confidence_tag = KallisteRealTag(
+                    "KallisteConfidence",
+                    region.confidence
+                )
+                region.add_tag(confidence_tag)
+
+        except Exception as e:
+            logger.error(f"Failed to add base tags to region: {e}")
+            raise
+
     async def process(self):
         """Process the image."""
         try:
@@ -119,28 +143,22 @@ class OriginalImage:
                 results.regions = region_matcher.match_faces(results.regions, lr_faces)
                 # Note: match_faces adds name attribute to matched regions
             
-            # Create base kalliste tags that every cropped image will get
-            base_kalliste_tags = {
-                "KallistePhotoshootId": {self.source_path.parent.name},
-                "KallisteOriginalFilePath": {str(self.source_path.absolute())}
-            }
-            
             # Process each detected region
             for region in results.regions:
-                # Start with base tags
-                kalliste_tags = base_kalliste_tags.copy()
-                
-                # Add person name if this region was matched
+                # Add base metadata tags
+                self._add_base_tags_to_region(region)
+
+                # Add person name if this region was matched with LR face
                 if hasattr(region, 'name') and region.name:
-                    kalliste_tags["KallistePersonName"] = {region.name}
+                    name_tag = KallisteStringTag("KallistePersonName", region.name)
+                    region.add_tag(name_tag)
                 
                 # Create and process cropped image
                 cropped = CroppedImage(
                     self.source_path,
                     self.output_dir,
                     region,
-                    config=self.config,
-                    kalliste_tags=kalliste_tags
+                    config=self.config
                 )
                 await cropped.process()
                 

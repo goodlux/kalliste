@@ -1,8 +1,8 @@
 """Writes kalliste tags to caption text file."""
-
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Any
 import logging
+from ..tag import KallisteStringTag, KallisteBagTag
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class CaptionFileWriter:
     def __init__(self, output_path: Path):
         self.output_path = output_path
         
-    def write_caption(self, kalliste_tags: Dict[str, Set[str]]) -> bool:
+    def write_caption(self, kalliste_tags: Dict[str, Any]) -> bool:
         """
         Main function to write caption file.
         Steps:
@@ -51,16 +51,22 @@ class CaptionFileWriter:
             logger.error(f"Error validating output path: {e}")
             return False
         
-    def _format_caption(self, kalliste_tags: Dict[str, Set[str]]) -> str:
+    def _format_caption(self, kalliste_tags: Dict[str, Any]) -> str:
         """
         Format caption text from kalliste tags.
         Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, [LR_TagsTBD], {Wd14Tags}
         """
-        # Extract values, using empty string if tag doesn't exist
-        person_name = next(iter(kalliste_tags.get("KallistePersonName", {""})))
-        caption = next(iter(kalliste_tags.get("KallisteCaption", {""})))
-        orientation = next(iter(kalliste_tags.get("KallisteOrientationTag", {""})))
-        wd14_tags = next(iter(kalliste_tags.get("KallisteWd14Tags", {""})))
+        # Extract values from tag objects, using empty string if tag doesn't exist
+        person_name = kalliste_tags.get("KallistePersonName", KallisteStringTag("KallistePersonName", "")).value
+        caption = kalliste_tags.get("KallisteCaption", KallisteStringTag("KallisteCaption", "")).value
+        orientation = kalliste_tags.get("KallisteOrientationTag", KallisteStringTag("KallisteOrientationTag", "")).value
+        
+        # For WD14 tags, we need to handle the bag type
+        wd14_tag = kalliste_tags.get("KallisteWd14Tags")
+        if wd14_tag and isinstance(wd14_tag, KallisteBagTag):
+            wd14_tags = ",".join(wd14_tag.value)
+        else:
+            wd14_tags = ""
         
         # Format caption line
         caption_parts = [

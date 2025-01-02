@@ -1,10 +1,12 @@
 """Represents a detected region in an image."""
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Set
+from typing import Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from PIL import Image
-from ..tag import KallisteTag, KallisteTagValue
+import logging
+from ..tag import KallisteStringTag, KallisteBagTag, KallisteIntegerTag, KallisteRealTag
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Region:
@@ -16,23 +18,27 @@ class Region:
     region_type: str  # 'face' or 'person' - keeping this as it's used in code
     confidence: Optional[float] = None  # keeping this as is for detection logic
     rotation: Optional[float] = None
-    kalliste_tags: Dict[str, KallisteTagValue] = field(default_factory=dict)
+    kalliste_tags: Dict[str, Any] = field(default_factory=dict) # This is the central "kalliste tag registry" for the entire application.
 
     def __post_init__(self):
         """Initialize kalliste tags based on region data"""
         # Store region_type as a tag as well
-        self.add_tag('KallisteRegionType', self.region_type)
+        tag = KallisteStringTag("KallisteRegionType", self.region_type)
+        self.add_tag(tag)
 
-    def add_tag(self, tag_name: str, value: KallisteTagValue) -> None:
-        """Add a tag with validation"""
-        if KallisteTag.validate_value(tag_name, value):
-            self.kalliste_tags[tag_name] = value
-        else:
-            raise ValueError(f"Invalid value type for tag {tag_name}")
-
-    def get_tag(self, tag_name: str) -> Optional[KallisteTagValue]:
-        """Get a tag's value if it exists."""
+    def add_tag(self, tag) -> None:
+        """Add or update a tag."""
+        if tag.name in self.kalliste_tags:
+            logger.warning(f"Overwriting existing tag: {tag.name}")
+        self.kalliste_tags[tag.name] = tag
+    
+    def get_tag(self, tag_name: str) -> Optional[Any]:
+        """Get a tag if it exists."""
         return self.kalliste_tags.get(tag_name)
+    
+    def has_tag(self, tag_name: str) -> bool:
+        """Check if a tag exists."""
+        return tag_name in self.kalliste_tags
     
     def get_dimensions(self) -> tuple[int, int]:
         """Get width and height of region."""

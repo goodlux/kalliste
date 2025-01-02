@@ -1,5 +1,4 @@
 """Writes kalliste tags to XMP metadata."""
-
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
@@ -7,7 +6,6 @@ import logging
 from io import StringIO
 import tempfile
 import os
-from ..tag import KallisteTagBase, KallisteTag
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +17,7 @@ class ExifWriter:
         self.dest_path = dest_path
         
     def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
-        """
-        Write kalliste tags to XMP metadata.
-        Args:
-            kalliste_tags: Dictionary mapping tag names to their values.
-                         Values should match their defined tag types.
-        """
+        """Write kalliste tags to XMP metadata."""
         temp_config = None
         try:
             if not self._validate_paths():
@@ -97,11 +90,9 @@ class ExifWriter:
         config.write("    GROUPS => { 0 => 'XMP', 1 => 'XMP-Kalliste', 2 => 'Image' },\n")
         config.write("    NAMESPACE => { 'Kalliste' => 'http://kalliste.ai/1.0/' },\n")
         
-        # Add tag definitions with their types
-        for tag_name in kalliste_tags.keys():
-            # Get tag definition for correct type info
-            tag_def = KallisteTag.get_tag_def(tag_name)
-            config.write(f"    '{tag_name}' => {{ Writable => '{tag_def.get_exiftool_type()}' }},\n")
+        # Add tag definitions - each tag knows its own type through the tag object
+        for tag_name, tag in kalliste_tags.items():
+            config.write(f"    '{tag_name}' => {{ }},\n")
         
         config.write(");\n")
         config.write("1;\n")  # Required for Perl modules
@@ -118,16 +109,9 @@ class ExifWriter:
             "-all:all",
         ]
         
-        # Add each kalliste tag as XMP using proper formatting
-        for tag_name, value in kalliste_tags.items():
-            # Get tag definition and validate value
-            tag_def = KallisteTag.get_tag_def(tag_name)
-            if not tag_def.validate(value):
-                logger.error(f"Invalid value for tag {tag_name}: {value}")
-                continue
-                
-            # Convert value to XMP format
-            xmp_value = tag_def.to_xmp(value)
+        # Add each kalliste tag as XMP using the tag's own formatting
+        for tag_name, tag in kalliste_tags.items():
+            xmp_value = tag.to_xmp()
             cmd.extend([f"-XMP-Kalliste:{tag_name}={xmp_value}"])
         
         # Add destination and overwrite flag
