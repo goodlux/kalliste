@@ -22,46 +22,6 @@ class TagResult:
     def __repr__(self):
         return f"{self.category}:{self.label}({self.confidence:.2f})"
 
-@dataclass
-class KallisteTag:
-    """Single Kalliste tag with metadata"""
-    tag: str
-    source: str  # e.g. 'lightroom', 'face_detector', 'person_detector'
-    confidence: Optional[float] = None
-    
-    def __post_init__(self):
-        """Validate tag attributes after initialization"""
-        # Validate tag format
-        if not self.tag or not isinstance(self.tag, str):
-            logger.error(f"Invalid tag value: {self.tag}")
-            raise ValueError("Tag must be a non-empty string")
-            
-        # Validate source
-        if not self.source or not isinstance(self.source, str):
-            logger.error(f"Invalid source value: {self.source}")
-            raise ValueError("Source must be a non-empty string")
-            
-        # Validate confidence if present
-        if self.confidence is not None:
-            if not isinstance(self.confidence, (int, float)) or not 0 <= self.confidence <= 1:
-                logger.error(f"Invalid confidence value: {self.confidence}")
-                raise ValueError("Confidence must be between 0 and 1")
-                
-        # Log successful creation - fixed the f-string formatting issue
-        conf_str = f"{self.confidence:.3f}" if self.confidence is not None else "None"
-        logger.debug(
-            f"Created KallisteTag: tag='{self.tag}', source='{self.source}', "
-            f"confidence={conf_str}"
-        )
-
-    def to_dict(self) -> dict:
-        """Convert tag to dictionary format"""
-        logger.debug(f"Converting KallisteTag to dict: {self.tag}")
-        return {
-            'tag': self.tag,
-            'source': self.source,
-            'confidence': self.confidence
-        }
 
 class ProcessingStatus(Enum):
     """Status of image processing"""
