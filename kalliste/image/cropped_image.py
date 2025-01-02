@@ -27,7 +27,6 @@ class CroppedImage:
         self.output_dir = output_dir
         self.region = region
         self.config = config
-        self.kalliste_tags: Dict[str, Set[str]] = {}
         
         # Initialize tagger
         self.tagger_pipeline = tagger_pipeline or TaggerPipeline(config)
@@ -97,7 +96,7 @@ class CroppedImage:
             raise
             
     def _process_tag_results(self, tag_results: Dict[str, List[TagResult]]) -> None:
-        """Process tagger results into kalliste_tags."""
+        """Process tagger results into region kalliste_tags."""
         try:
             logger.info("Processing tag results:")
             
@@ -112,55 +111,51 @@ class CroppedImage:
                     orientation_tag = highest_conf.label.lower()
                     logger.info(f"  Selected highest confidence: {highest_conf}")
                     logger.info(f"  Final orientation tag: {orientation_tag}")
-                    self.kalliste_tags["KallisteOrientationTag"] = {orientation_tag}
+                    self.region.add_tag("KallisteOrientationTag", orientation_tag)
                     
                     # Save raw orientation data
                     raw_orientations = [f"{tag.label}({tag.confidence:.2f})" for tag in orientations]
-                    self.kalliste_tags["KallisteRawOrientationData"] = {", ".join(raw_orientations)}
+                    self.region.add_tag("KallisteRawOrientationData", set(raw_orientations))
             
             # Process wd14 tags (category 0)
             if '0' in tag_results:
                 logger.info("Processing wd14 tags:")
                 # Get tags without confidences for SDXL
-                wd14_tags = [tag.label for tag in tag_results['0']]
+                wd14_tags = {tag.label for tag in tag_results['0']}  # Using set directly
                 logger.info(f"  Raw wd14 tags: {tag_results['0']}")
                 logger.info(f"  Processed wd14 tags: {wd14_tags}")
-                self.kalliste_tags["KallisteWd14Tags"] = {",".join(wd14_tags)}
+                self.region.add_tag("KallisteWd14Tags", wd14_tags)
                 
-                # Save raw WD14 data
-                raw_wd14 = [f"{tag.label}({tag.confidence:.2f})" for tag in tag_results['0']]
-                self.kalliste_tags["KallisteRawWd14Tags"] = {", ".join(raw_wd14)}
+                # Save raw WD14 data with confidences
+                raw_wd14 = {f"{tag.label}({tag.confidence:.2f})" for tag in tag_results['0']}
+                self.region.add_tag("KallisteRawWd14Tags", raw_wd14)
             
             # Process caption
             if 'caption' in tag_results and tag_results['caption']:
                 logger.info("Processing caption:")
                 caption = tag_results['caption'][0].label
                 logger.info(f"  Caption: {caption}")
-                self.kalliste_tags["KallisteCaption"] = {caption}
-
-            # PersonName placeholder
-            logger.info("Adding placeholder person name")
-            self.kalliste_tags["KallistePersonName"] = {"UnknownPerson"}
+                self.region.add_tag("KallisteCaption", caption)
 
             # Add original path
-            self.kalliste_tags["KallisteOriginalPath"] = {str(self.source_path)}
+            self.region.add_tag("KallisteOriginalPath", str(self.source_path))
 
         except Exception as e:
             logger.error(f"Error processing tag results: {e}")
             raise
         
     def _write_metadata(self, image_path: Path):
-        """Write kalliste_tags to both caption file and XMP metadata."""
+        """Write region's kalliste_tags to both caption file and XMP metadata."""
         try:
             # Write caption file
             txt_path = image_path.with_suffix('.txt')
             caption_writer = CaptionFileWriter(txt_path)
-            if not caption_writer.write_caption(self.kalliste_tags):
+            if not caption_writer.write_caption(self.region.kalliste_tags):
                 logger.error("Failed to write caption file")
                 
             # Write XMP metadata
             exif_writer = ExifWriter(self.source_path, image_path)
-            if not exif_writer.write_tags(self.kalliste_tags):
+            if not exif_writer.write_tags(self.region.kalliste_tags):
                 logger.error("Failed to write XMP metadata")
                 
         except Exception as e:

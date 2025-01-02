@@ -2,11 +2,12 @@
 
 import subprocess
 from pathlib import Path
-from typing import Dict, Set, List
+from typing import Dict, Any, List
 import logging
 from io import StringIO
 import tempfile
 import os
+from ..tag import KallisteTagBase, KallisteTag
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +18,12 @@ class ExifWriter:
         self.source_path = source_path
         self.dest_path = dest_path
         
-    def write_tags(self, kalliste_tags: Dict[str, Set[str]]) -> bool:
+    def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
         """
-        Main function to write kalliste tags to XMP metadata.
-        Steps:
-        1. Generate and write temporary config file
-        2. Copy all metadata from source file
-        3. Add kalliste tags as XMP
-        4. Clean up temporary config
+        Write kalliste tags to XMP metadata.
+        Args:
+            kalliste_tags: Dictionary mapping tag names to their values.
+                         Values should match their defined tag types.
         """
         temp_config = None
         try:
@@ -38,16 +37,8 @@ class ExifWriter:
             temp_config.flush()
             temp_config.close()  # Close but don't delete yet
             
-            logger.error(f"Created temp config at: {temp_config.name}")
-            logger.error(f"Config content:\n{config_content}")
-            
-            # Verify config file exists and has content
-            if not os.path.exists(temp_config.name):
-                logger.error("Temp config file not found after creation")
-                return False
-                
-            with open(temp_config.name, 'r') as f:
-                logger.error(f"Actual config file content:\n{f.read()}")
+            logger.debug(f"Created temp config at: {temp_config.name}")
+            logger.debug(f"Config content:\n{config_content}")
             
             # Build and execute exiftool command using temp config
             cmd = self._build_exiftool_command(kalliste_tags, temp_config.name)
@@ -86,11 +77,10 @@ class ExifWriter:
             logger.error(f"Error validating paths: {e}")
             return False
 
-    def _generate_config(self, kalliste_tags: Dict[str, Set[str]]) -> str:
+    def _generate_config(self, kalliste_tags: Dict[str, Any]) -> str:
         """Generate exiftool config content using StringIO."""
         config = StringIO()
         
-        # Write config header - minimal version without Perl imports
         config.write("# Generated Kalliste XMP namespace configuration\n\n")
         
         config.write("%Image::ExifTool::UserDefined = (\n")
@@ -106,18 +96,19 @@ class ExifWriter:
         config.write("%Image::ExifTool::UserDefined::Kalliste = (\n")
         config.write("    GROUPS => { 0 => 'XMP', 1 => 'XMP-Kalliste', 2 => 'Image' },\n")
         config.write("    NAMESPACE => { 'Kalliste' => 'http://kalliste.ai/1.0/' },\n")
-        config.write("    WRITABLE => 'string',\n\n")
         
-        # Add tag definitions - keep the Kalliste prefix in the config
+        # Add tag definitions with their types
         for tag_name in kalliste_tags.keys():
-            config.write(f"    '{tag_name}' => {{ }},\n")
+            # Get tag definition for correct type info
+            tag_def = KallisteTag.get_tag_def(tag_name)
+            config.write(f"    '{tag_name}' => {{ Writable => '{tag_def.get_exiftool_type()}' }},\n")
         
         config.write(");\n")
         config.write("1;\n")  # Required for Perl modules
         
         return config.getvalue()
         
-    def _build_exiftool_command(self, kalliste_tags: Dict[str, Set[str]], config_path: str) -> List[str]:
+    def _build_exiftool_command(self, kalliste_tags: Dict[str, Any], config_path: str) -> List[str]:
         """Build exiftool command with proper XMP tags."""
         # Start with basic command to copy all metadata
         cmd = [
@@ -127,19 +118,22 @@ class ExifWriter:
             "-all:all",
         ]
         
-        # Add each kalliste tag as XMP
-        for tag_name, values in kalliste_tags.items():
-            # Get the first (and should be only) value from the set
-            value = next(iter(values))
-            # Use the full tag name as defined in the config
-            cmd.extend([f"-XMP-Kalliste:{tag_name}={value}"])
+        # Add each kalliste tag as XMP using proper formatting
+        for tag_name, value in kalliste_tags.items():
+            # Get tag definition and validate value
+            tag_def = KallisteTag.get_tag_def(tag_name)
+            if not tag_def.validate(value):
+                logger.error(f"Invalid value for tag {tag_name}: {value}")
+                continue
+                
+            # Convert value to XMP format
+            xmp_value = tag_def.to_xmp(value)
+            cmd.extend([f"-XMP-Kalliste:{tag_name}={xmp_value}"])
         
         # Add destination and overwrite flag
         cmd.extend([str(self.dest_path), "-overwrite_original"])
         
-        # Log the full command for debugging
-        logger.error(f"Built exiftool command: {' '.join(cmd)}")
-        
+        logger.debug(f"Built exiftool command: {' '.join(cmd)}")
         return cmd
         
     def _execute_command(self, cmd: List[str]) -> bool:
@@ -157,9 +151,9 @@ class ExifWriter:
                 
             # Log warnings but don't fail
             if result.stderr:
-                logger.error(f"Exiftool warnings: {result.stderr}")
+                logger.warning(f"Exiftool warnings: {result.stderr}")
                 
-            logger.error(f"Exiftool stdout: {result.stdout}")
+            logger.debug(f"Exiftool stdout: {result.stdout}")
             logger.info(f"Successfully wrote XMP metadata to: {self.dest_path}")
             return True
             
