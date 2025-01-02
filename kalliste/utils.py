@@ -21,27 +21,25 @@ class RichHandler(BaseRichHandler):
         
     def emit(self, record: logging.LogRecord):
         try:
-            # Format with file location but keep it concise
-            location = f"[dim][{record.filename}:{record.lineno}][/]"
+            # Format location info more prominently
+            location = f"[dim]{record.filename}:{record.lineno}[/]"
             
             # Choose style based on level
             if record.levelno >= logging.ERROR:
                 level_style = "bold red"
-                # For errors, only show the error message here
-                # The traceback will be handled by format_error
-                msg = record.getMessage()
+                msg = f"[{location}] {record.getMessage()}"
             elif record.levelno >= logging.WARNING:
                 level_style = "yellow"
-                msg = record.getMessage()
+                msg = f"[{location}] {record.getMessage()}"
             elif record.levelno >= logging.INFO:
                 level_style = "green"
-                msg = record.getMessage()
-            else:
+                msg = f"[{location}] {record.getMessage()}"
+            else:  # DEBUG
                 level_style = "blue"
-                msg = record.getMessage()
+                msg = f"[{location}] {record.getMessage()}"
             
-            # Format and print the message
-            formatted_msg = f"{location} [{level_style}]{record.levelname}[/] {msg}"
+            # Format and print the message with level at the start
+            formatted_msg = f"[{level_style}]{record.levelname}[/] {msg}"
             self.console.print(formatted_msg)
                 
         except Exception:

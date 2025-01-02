@@ -54,37 +54,49 @@ class CaptionFileWriter:
     def _format_caption(self, kalliste_tags: Dict[str, Any]) -> str:
         """
         Format caption text from kalliste tags.
-        Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, [LR_TagsTBD], {Wd14Tags}
+        Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, {LrTags}, {Wd14Tags}
         """
-        # Extract values from tag objects, using empty string if tag doesn't exist
-        person_name = kalliste_tags.get("KallistePersonName", KallisteStringTag("KallistePersonName", "")).value
-        caption = kalliste_tags.get("KallisteCaption", KallisteStringTag("KallisteCaption", "")).value
-        orientation = kalliste_tags.get("KallisteOrientationTag", KallisteStringTag("KallisteOrientationTag", "")).value
+        # Start with mandatory prefix
+        caption_parts = ["ballerinaLux"]
         
-        # For WD14 tags, we need to handle the bag type
-        wd14_tag = kalliste_tags.get("KallisteWd14Tags")
-        if wd14_tag and isinstance(wd14_tag, KallisteBagTag):
-            wd14_tags = ",".join(wd14_tag.value)
+        # Add person name if it exists
+        if "KallistePersonName" in kalliste_tags:
+            name = kalliste_tags["KallistePersonName"].value
+            logger.debug(f"Found person name: {name}")
+            caption_parts.append(name)
         else:
-            wd14_tags = ""
+            logger.warning("No KallistePersonName tag found")
         
-        # Format caption line
-        caption_parts = [
-            "ballerinaLux",
-            person_name,
-            caption,
-            orientation,
-            "[LR_TagsTBD]",  # Placeholder for now
-            wd14_tags
-        ]
+        # Add caption if it exists
+        if "KallisteCaption" in kalliste_tags:
+            caption = kalliste_tags["KallisteCaption"].value
+            caption_parts.append(caption)
         
-        # Log what we found and didn't find
-        for tag in self.REQUIRED_TAGS:
-            if tag not in kalliste_tags:
-                logger.warning(f"Missing expected tag: {tag}")
+        # Add orientation if it exists
+        if "KallisteOrientationTag" in kalliste_tags:
+            orientation = kalliste_tags["KallisteOrientationTag"].value
+            caption_parts.append(orientation)
         
-        return ", ".join(caption_parts)
+        # Add LR tags if they exist
+        if "KallisteLrTags" in kalliste_tags:
+            lr_tags = kalliste_tags["KallisteLrTags"]
+            if isinstance(lr_tags, KallisteBagTag):
+                lr_tags_str = ",".join(lr_tags.value)
+                caption_parts.append(lr_tags_str)
+                logger.debug(f"Added LR tags: {lr_tags_str}")
         
+        # Add WD14 tags if they exist
+        if "KallisteWd14Tags" in kalliste_tags:
+            wd14_tags = kalliste_tags["KallisteWd14Tags"]
+            if isinstance(wd14_tags, KallisteBagTag):
+                wd14_tags_str = ",".join(wd14_tags.value)
+                caption_parts.append(wd14_tags_str)
+        
+        # Join parts with commas, filtering out any empty strings
+        result = ", ".join(filter(None, caption_parts))
+        logger.debug(f"Generated caption: {result}")
+        return result
+            
     def _write_to_file(self, caption_text: str) -> bool:
         """Write formatted caption to file."""
         try:
