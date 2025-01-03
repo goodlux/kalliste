@@ -8,45 +8,31 @@ from .AbstractTagger import AbstractTagger
 from .wd14_tagger import WD14Tagger
 from .caption_tagger import CaptionTagger
 from .orientation_tagger import OrientationTagger
+from .NIMA_tagger import NIMATagger
 from ..types import TagResult
+from ..tag.kalliste_tag import KallisteRealTag, KallisteStringTag, KallisteBagTag
+from ..region import Region
 
 logger = logging.getLogger(__name__)
 
 class TaggerPipeline:
-    """Pipeline for managing and running multiple image taggers.
-    
-    This pipeline coordinates running the appropriate taggers based on the
-    detection type and configuration. Each tagger gets its model from the
-    model registry and uses configuration specified in the detection config.
-    """
+    """Pipeline for managing and running multiple image taggers."""
     
     # Map of tagger name to tagger class
     TAGGER_CLASSES = {
         'wd14': WD14Tagger,
         'caption': CaptionTagger,
-        'orientation': OrientationTagger
+        'orientation': OrientationTagger,
+        'nima': NIMATagger
     }
     
     def __init__(self, config: Dict):
-        """Initialize tagger pipeline with configuration.
-        
-        Args:
-            config: Configuration dictionary from detection_config.yaml
-                Should contain tagger-specific configs and type mappings
-        """
+        """Initialize tagger pipeline with configuration."""
         self.config = config
         self.taggers: Dict[str, AbstractTagger] = {}
         
     def _ensure_tagger_initialized(self, tagger_name: str) -> None:
-        """Initialize a specific tagger if not already initialized.
-        
-        Args:
-            tagger_name: Name of tagger to initialize
-            
-        Raises:
-            ValueError: If tagger_name is not supported
-            RuntimeError: If tagger initialization fails
-        """
+        """Initialize a specific tagger if not already initialized."""
         if tagger_name not in self.taggers:
             if tagger_name not in self.TAGGER_CLASSES:
                 raise ValueError(f"Unsupported tagger: {tagger_name}")
@@ -62,8 +48,166 @@ class TaggerPipeline:
             except Exception as e:
                 logger.error(f"Failed to initialize {tagger_name} tagger: {e}", exc_info=True)
                 raise RuntimeError(f"Tagger initialization failed: {e}")
+
+    def _process_orientation_results(self, region: Region, orientation_results: List[TagResult]) -> None:
+        """Process orientation results and add them to region's kalliste_tags."""
+        try:
+            if orientation_results:
+                logger.info("Processing orientation tags:")
+                logger.info(f"  All orientations: {orientation_results}")
+                
+                # Get highest confidence orientation
+                highest_conf = max(orientation_results, key=lambda x: x.confidence)
+                orientation_tag = KallisteStringTag(
+                    "KallisteOrientationTag",
+                    highest_conf.label.lower()
+                )
+                region.add_tag(orientation_tag)
+                
+                # Save raw orientation data as bag
+                raw_orientations = {
+                    f"{tag.label}({tag.confidence:.2f})" 
+                    for tag in orientation_results
+                }
+                raw_tag = KallisteBagTag(
+                    "KallisteRawOrientationData",
+                    raw_orientations
+                )
+                region.add_tag(raw_tag)
+                
+                logger.debug(f"Added orientation tags: {highest_conf.label} with raw data")
+                
+        except Exception as e:
+            logger.error(f"Failed to process orientation results: {e}")
+            raise RuntimeError(f"Orientation tag processing failed: {e}")
+
+    def _process_wd14_results(self, region: Region, wd14_results: List[TagResult]) -> None:
+        """Process WD14 results and add them to region's kalliste_tags."""
+        try:
+            if wd14_results:
+                logger.info("Processing wd14 tags:")
+                # Get tags without confidences for SDXL
+                wd14_tags = {tag.label for tag in wd14_results}
+                logger.info(f"  Raw wd14 tags: {wd14_results}")
+                logger.info(f"  Processed wd14 tags: {wd14_tags}")
+                
+                tag = KallisteBagTag("KallisteWd14Tags", wd14_tags)
+                region.add_tag(tag)
+                
+                # Save raw WD14 data with confidences as bag
+                raw_wd14 = {
+                    f"{tag.label}({tag.confidence:.2f})" 
+                    for tag in wd14_results
+                }
+                raw_tag = KallisteBagTag("KallisteRawWd14Tags", raw_wd14)
+                region.add_tag(raw_tag)
+                
+                logger.debug(f"Added WD14 tags: {len(wd14_tags)} tags with raw data")
+                
+        except Exception as e:
+            logger.error(f"Failed to process WD14 results: {e}")
+            raise RuntimeError(f"WD14 tag processing failed: {e}")
+
+    def _process_caption_results(self, region: Region, caption_results: List[TagResult]) -> None:
+        """Process caption results and add them to region's kalliste_tags."""
+        try:
+            if caption_results:
+                logger.info("Processing caption:")
+                caption = caption_results[0].label
+                logger.info(f"  Caption: {caption}")
+                caption_tag = KallisteStringTag("KallisteCaption", caption)
+                region.add_tag(caption_tag)
+                
+                logger.debug(f"Added caption: {caption}")
+                
+        except Exception as e:
+            logger.error(f"Failed to process caption results: {e}")
+            raise RuntimeError(f"Caption tag processing failed: {e}")
+
+    def _process_nima_results(self, region: Region, nima_results: Dict[str, List[TagResult]]) -> None:
+        """Process NIMA results and add them to region's kalliste_tags."""
+        try:
+            # Process technical quality results
+            if 'technical_quality' in nima_results:
+                tech_result = nima_results['technical_quality'][0]
+                
+                # Add technical score (as a real number between 0-1)
+                tech_score_tag = KallisteRealTag(
+                    "KallisteNimaTechnicalScore",
+                    tech_result.confidence
+                )
+                region.add_tag(tech_score_tag)
+                
+                # Add technical assessment (as a string)
+                tech_assess_tag = KallisteStringTag(
+                    "KallisteNimaTechnicalAssessment",
+                    tech_result.label
+                )
+                region.add_tag(tech_assess_tag)
+                
+                logger.debug(f"Added NIMA technical score: {tech_result.confidence:.3f} ({tech_result.label})")
+
+            # Process aesthetic quality results
+            if 'aesthetic_quality' in nima_results:
+                aes_result = nima_results['aesthetic_quality'][0]
+                
+                # Add aesthetic score (as a real number between 0-1)
+                aes_score_tag = KallisteRealTag(
+                    "KallisteNimaAestheticScore",
+                    aes_result.confidence
+                )
+                region.add_tag(aes_score_tag)
+                
+                # Add aesthetic assessment (as a string)
+                aes_assess_tag = KallisteStringTag(
+                    "KallisteNimaAestheticAssessment",
+                    aes_result.label
+                )
+                region.add_tag(aes_assess_tag)
+                
+                logger.debug(f"Added NIMA aesthetic score: {aes_result.confidence:.3f} ({aes_result.label})")
+
+            # Process overall quality assessment if available
+            if 'overall_quality' in nima_results:
+                overall_result = nima_results['overall_quality'][0]
+                
+                # Add overall score (as a real number between 0-1)
+                overall_score_tag = KallisteRealTag(
+                    "KallisteNimaOverallScore",
+                    overall_result.confidence
+                )
+                region.add_tag(overall_score_tag)
+                
+                # Add overall assessment (as a string)
+                overall_assess_tag = KallisteStringTag(
+                    "KallisteNimaOverallAssessment",
+                    overall_result.label
+                )
+                region.add_tag(overall_assess_tag)
+                
+                logger.debug(f"Added NIMA overall score: {overall_result.confidence:.3f} ({overall_result.label})")
+
+        except Exception as e:
+            logger.error(f"Failed to process NIMA results: {e}")
+            raise RuntimeError(f"NIMA tag processing failed: {e}")
+
+    def _process_tagger_results(self, region: Region, tagger_name: str, results: Dict[str, List[TagResult]]) -> None:
+        """Process results from a specific tagger and add them to region's kalliste_tags."""
+        try:
+            if tagger_name == 'orientation' and 'orientation' in results:
+                self._process_orientation_results(region, results['orientation'])
+            elif tagger_name == 'wd14' and '0' in results:
+                self._process_wd14_results(region, results['0'])
+            elif tagger_name == 'caption' and 'caption' in results:
+                self._process_caption_results(region, results['caption'])
+            elif tagger_name == 'nima':
+                self._process_nima_results(region, results)
+                
+        except Exception as e:
+            logger.error(f"Failed to process {tagger_name} results: {e}")
+            raise RuntimeError(f"Tag processing failed for {tagger_name}: {e}")
     
-    async def tag_pillow_image(self, image: Image.Image, region_type: str) -> Dict[str, List[TagResult]]:
+    async def tag_pillow_image(self, image: Image.Image, region_type: str, region: Optional[Region] = None) -> Dict[str, List[TagResult]]:
         """Run configured taggers for this region type using a PIL Image."""
         # Get list of taggers to run for this region type
         taggers_to_run = self.config.get(region_type)
@@ -90,6 +234,10 @@ class TaggerPipeline:
                                 for tag in tags
                             ]
                             logger.debug(f"{tagger_name} {category} results: {tag_details}")
+                    
+                    # Process results into kalliste_tags if we have a region
+                    if region is not None:
+                        self._process_tagger_results(region, tagger_name, tagger_results)
                     
                     results.update(tagger_results)
                 else:
@@ -124,20 +272,7 @@ class TaggerPipeline:
             raise RuntimeError(f"Tagging failed: {str(e)}") from e
             
     async def tag_image(self, image_path: Path, region_type: str) -> Dict[str, List[TagResult]]:
-        """Run configured taggers for this region type using an image file.
-        
-        Args:
-            image_path: Path to image to tag
-            region_type: Type of region (e.g., 'person', 'face')
-            
-        Returns:
-            Dictionary mapping tagger names to their results
-            
-        Raises:
-            FileNotFoundError: If image file doesn't exist
-            ValueError: If region_type has no configured taggers
-            RuntimeError: If tagging fails
-        """
+        """Run configured taggers for this region type using an image file."""
         if not image_path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
             

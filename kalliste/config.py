@@ -1,11 +1,10 @@
 from pathlib import Path
-from pathlib import Path
 
 # Cache directories
 CACHE_DIR = Path.home() / ".cache"
 YOLO_CACHE_DIR = CACHE_DIR / "ultralytics"
 HF_CACHE_DIR = CACHE_DIR / "huggingface" / "hub"
-
+NIMA_CACHE_DIR = CACHE_DIR / "kalliste" / "nima"
 
 # Core model configurations - all in default cache locations
 MODELS = {
@@ -38,6 +37,17 @@ MODELS = {
             "model_id": "orientation",
             "hf_path": "LucyintheSky/pose-estimation-front-side-back",
             "files": []
+        },
+        "nima": {
+            "model_id": "nima",
+            "urls": {
+                "technical": "https://github.com/idealo/image-quality-assessment/raw/refs/heads/master/models/MobileNet/weights_mobilenet_technical_0.11.hdf5",
+                "aesthetic": "https://github.com/idealo/image-quality-assessment/raw/refs/heads/master/models/MobileNet/weights_mobilenet_aesthetic_0.07.hdf5"
+            },
+            "files": {
+                "technical": "technical_0.11.hdf5",
+                "aesthetic": "aesthetic_0.07.hdf5"
+            }
         }
     }
 }
@@ -47,8 +57,6 @@ MODELS = {
 BLIP2_MODEL_ID = MODELS["classification"]["blip2"]
 ORIENTATION_MODEL_ID = MODELS["classification"]["orientation"]
 WD14_MODEL_ID = MODELS["classification"]["wd14"]
-
-
 
 # # Detection configurations
 # DETECTION_CONFIG = {

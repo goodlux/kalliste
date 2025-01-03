@@ -23,6 +23,12 @@ tagger:
     repetition_penalty: 1.5
   orientation:
     confidence: 0.8
+  nima:
+    # We could add config overrides here, but the defaults in NIMA_tagger.py will work fine
+    # technical_threshold: 0.5
+    # aesthetic_threshold: 5.0
+    # use_technical: true
+    # use_aesthetic: true
 
 # Device configuration
 device:
@@ -34,7 +40,9 @@ person:
   - orientation
   - wd14
   - caption
+  - nima
 
 face:
   - wd14
   - caption 
+  - nima
