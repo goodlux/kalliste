@@ -15,8 +15,10 @@ from ..tag.kalliste_tag import (
     KallisteStringTag,
     KallisteDateTag,
     KallisteRealTag,
-    KallisteBagTag
+    KallisteBagTag,
+    KallisteIntegerTag
 )
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -28,87 +30,112 @@ class OriginalImage:
         self.output_dir = output_dir
         self.config = config
 
-    def _extract_lr_metadata(self) -> tuple[List[Dict[str, any]], List[str]]:
-        """Extract all Lightroom metadata (faces and tags) using a single exiftool call."""
+
+    def _extract_lr_metadata(self) -> tuple[Dict[str, any], List[Dict[str, any]], List[str]]:
+        """Extract all Lightroom metadata using a single exiftool call."""
         try:
-            # Run exiftool to get both region data and subject tags - add -G for groups
             cmd = [
                 'exiftool',
-                '-RegionInfo',           # Try this instead of Region:all
                 '-RegionAppliedToDimensionsW',
                 '-RegionAppliedToDimensionsH',
                 '-RegionName',
-                '-RegionType',
-                '-RegionArea',
+                '-RegionType', 
+                '-RegionAreaH',
+                '-RegionAreaW',
+                '-RegionAreaX',
+                '-RegionAreaY',
+                '-RegionRotation',
                 '-WeightedFlatSubject',
-                '-j',                    # Output as JSON
-                '-G',                    # Show group names
+                '-j',
+                '-G',
                 str(self.source_path)
             ]
             
-            logger.debug(f"Running exiftool command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode != 0:
                 logger.error(f"Exiftool failed: {result.stderr}")
-                return [], []
+                return {}, [], []
                 
-            # Log raw output to see what we're getting
-            logger.debug(f"Exiftool raw output: {result.stdout}")
-                    
-            # Parse the metadata
-            metadata = json.loads(result.stdout)[0]  # First (only) image
+            metadata = json.loads(result.stdout)[0]
             logger.debug(f"Raw exiftool output: {json.dumps(metadata, indent=2)}")
         
-            # Check what fields we actually got
-            logger.debug(f"Available metadata fields: {list(metadata.keys())}")
+            # Extract general metadata
+            general_metadata = {
+                'photoshoot_id': self.source_path.parent.name,
+            }
+            
+            # Process LR subject tags from WeightedFlatSubject - now using correct key
+            lr_tags = []
+            weighted_subject = metadata.get('XMP:WeightedFlatSubject', [])  # Changed key, expect list
+            if isinstance(weighted_subject, list):
+                lr_tags = weighted_subject
+            elif isinstance(weighted_subject, str):
+                lr_tags = [tag.strip() for tag in weighted_subject.split(',')]
+            
+            # Process the LR face regions
+            lr_faces = []
+
+            # Get all the region arrays - updated to use correct keys and handle float values
+            names = metadata.get('XMP:RegionName', [])  # Already comes as a list
+            if not isinstance(names, list):
+                names = [n.strip() for n in str(names).split(',')]
                 
-            # Process the LR face regions, will be used to match Yolo Face detections. 
-            face_records = []
-            if 'Region Name' in metadata:
-                names = metadata.get('Region Name', '').split(', ')
-                types = metadata.get('Region Type', '').split(', ')
-                rotations = [float(x) for x in metadata.get('Region Rotation', '0').split(', ')]
-                img_width = float(metadata.get('Region Applied To Dimensions W', 0))
-                img_height = float(metadata.get('Region Applied To Dimensions H', 0))
-                areas_h = [float(x) for x in metadata.get('Region Area H', '0').split(', ')]
-                areas_w = [float(x) for x in metadata.get('Region Area W', '0').split(', ')]
-                areas_x = [float(x) for x in metadata.get('Region Area X', '0').split(', ')]
-                areas_y = [float(x) for x in metadata.get('Region Area Y', '0').split(', ')]
+            types = metadata.get('XMP:RegionType', [])
+            if not isinstance(types, list):
+                types = [t.strip() for t in str(types).split(',')]
                 
-                for i in range(len(names)):
-                    if types[i].lower() == 'face':
-                        face_records.append({
-                            'name': names[i],
-                            'rotation': rotations[i],
-                            'bbox': {
-                                'x': areas_x[i] * img_width,
-                                'y': areas_y[i] * img_height,
-                                'w': areas_w[i] * img_width,
-                                'h': areas_h[i] * img_height
-                            }
-                        })
-            else:
-                logger.info("No Lightroom face regions found")
-            # Process LR subject tags
-            lr_tags_str = metadata.get('WeightedFlatSubject', '')
-            lr_tags = [tag.strip() for tag in lr_tags_str.split(',')] if lr_tags_str else []
-            if not lr_tags:
-                logger.info("No Lightroom tags found")
+            img_width = float(metadata.get('XMP:RegionAppliedToDimensionsW', 0))
+            img_height = float(metadata.get('XMP:RegionAppliedToDimensionsH', 0))
+
+            # Helper function to convert value to float list
+            def to_float_list(value):
+                if isinstance(value, list):
+                    return [float(x) for x in value]
+                elif isinstance(value, (int, float)):
+                    return [float(value)]
+                else:
+                    return [float(x) for x in str(value).split(',')]
+
+            areas_h = to_float_list(metadata.get('XMP:RegionAreaH', []))
+            areas_w = to_float_list(metadata.get('XMP:RegionAreaW', []))
+            areas_x = to_float_list(metadata.get('XMP:RegionAreaX', []))
+            areas_y = to_float_list(metadata.get('XMP:RegionAreaY', []))
+
+            logger.debug(f"Processing regions: names={names}, types={types}")
+            
+            for i in range(len(names)):
+                if types[i].lower() == 'face':
+                    x_center = areas_x[i] * img_width
+                    y_center = areas_y[i] * img_height
+                    width = areas_w[i] * img_width
+                    height = areas_h[i] * img_height
+                    
+                    lr_faces.append({
+                        'name': names[i],
+                        'bbox': {
+                            'x': x_center - (width/2),
+                            'y': y_center - (height/2),
+                            'w': width,
+                            'h': height
+                        }
+                    })
+                    logger.debug(f"Added face record for {names[i]}: center=({x_center},{y_center}), size=({width},{height})")
                 
-            return face_records, lr_tags
+            return general_metadata, lr_faces, lr_tags
                 
         except Exception as e:
-            logger.error(f"Failed to extract Lightroom metadata: {e}")
-            return [], []
+            logger.error(f"Failed to extract Lightroom metadata: {e}", exc_info=True)
+            return {}, [], []
 
     async def process(self):
         """Process the image."""
         try:
             # Get all Lightroom metadata in one call
-            lr_faces, lr_tags = self._extract_lr_metadata()
-            logger.debug(f"Extracted faces: {lr_faces}")  # Add this
-            logger.debug(f"Extracted tags: {lr_tags}")    # Add this
+            general_metadata, lr_faces, lr_tags = self._extract_lr_metadata()
+            logger.debug(f"Extracted general metadata: {general_metadata}")
+            logger.debug(f"Extracted faces: {lr_faces}")
+            logger.debug(f"Extracted tags: {lr_tags}")
 
             # Pass relevant config to detection pipeline
             detection_pipeline = DetectionPipeline()
@@ -117,6 +144,7 @@ class OriginalImage:
                 config=self.config['detector']
             )
             
+            logger.debug(f"About to match regions. Have lr_faces: {lr_faces}")
             # If we have LR faces, try to match them
             if lr_faces:
                 region_matcher = RegionMatcher()
@@ -124,20 +152,27 @@ class OriginalImage:
             
             # Process each detected region
             for region in results.regions:
-                # Add basic metadata tags directly
+                # Add basic metadata tags
+                if general_metadata.get('datetime_original'):
+                    region.add_tag(KallisteDateTag(
+                        "KallistePhotoshootDate",
+                        datetime.strptime(general_metadata['datetime_original'], '%Y:%m:%d %H:%M:%S')
+                    ))
+                
+                if general_metadata.get('rating'):
+                    region.add_tag(KallisteIntegerTag(
+                        "KallisteRating", 
+                        int(general_metadata['rating'])
+                    ))
+                
                 region.add_tag(KallisteStringTag(
                     "KallistePhotoshootId", 
-                    self.source_path.parent.name
+                    general_metadata['photoshoot_id']
                 ))
                 
                 region.add_tag(KallisteStringTag(
                     "KallisteOriginalFilePath", 
                     str(self.source_path.absolute())
-                ))
-                
-                region.add_tag(KallisteStringTag(
-                    "KallisteRegionType",
-                    region.region_type
                 ))
                 
                 # Add Lightroom tags if any exist
@@ -152,7 +187,7 @@ class OriginalImage:
                     config=self.config
                 )
                 await cropped.process()
-                
+                    
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")
             raise
