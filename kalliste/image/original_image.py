@@ -46,6 +46,8 @@ class OriginalImage:
                 '-RegionAreaY',
                 '-RegionRotation',
                 '-WeightedFlatSubject',
+                '-Rating',           # Added Rating
+                '-Label',            # Added Label
                 '-j',
                 '-G',
                 str(self.source_path)
@@ -65,9 +67,17 @@ class OriginalImage:
                 'photoshoot_id': self.source_path.parent.name,
             }
             
-            # Process LR subject tags from WeightedFlatSubject - now using correct key
+            # Add Rating if present
+            if 'Rating' in metadata:
+                general_metadata['lr_rating'] = metadata['Rating']
+                
+            # Add Label if present (convert to lowercase)
+            if 'Label' in metadata:
+                general_metadata['lr_label'] = metadata['Label'].lower()
+            
+            # Process LR subject tags from WeightedFlatSubject
             lr_tags = []
-            weighted_subject = metadata.get('XMP:WeightedFlatSubject', [])  # Changed key, expect list
+            weighted_subject = metadata.get('XMP:WeightedFlatSubject', [])
             if isinstance(weighted_subject, list):
                 lr_tags = weighted_subject
             elif isinstance(weighted_subject, str):
@@ -187,6 +197,20 @@ class OriginalImage:
                     config=self.config
                 )
                 await cropped.process()
+
+                # Add Rating if present
+                if 'lr_rating' in general_metadata:
+                    region.add_tag(KallisteIntegerTag(
+                        "KallisteLrRating", 
+                        int(general_metadata['lr_rating'])
+                    ))
+                
+                # Add Label if present
+                if 'lr_label' in general_metadata:
+                    region.add_tag(KallisteStringTag(
+                        "KallisteLrLabel", 
+                        general_metadata['lr_label']
+                    ))
                     
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")

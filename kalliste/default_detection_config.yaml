@@ -16,7 +16,7 @@ detector:
 tagger:
   wd14:
     confidence: 0.35
-    blacklist: ['nsfw', 'explicit']
+    blacklist: []
   caption:
     max_length: 100
     temperature: 1.0

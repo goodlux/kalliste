@@ -33,7 +33,7 @@ class KallisteStringTag(KallisteBaseTag):
 
 class KallisteBagTag(KallisteBaseTag):
     """A tag containing an unordered set of strings.
-    XMP format: {value1,value2,value3}"""
+    XMP format: comma-separated list that exiftool will format as a bag"""
     def __init__(self, name: str, value: Set[str]):
         super().__init__(name)
         if not self.validate_value(value):
@@ -44,8 +44,8 @@ class KallisteBagTag(KallisteBaseTag):
         return isinstance(value, (set, list))
 
     def to_xmp(self) -> str:
-        """Format as comma-separated values in braces."""
-        return "{" + ",".join(self.value) + "}"
+        """Format as comma-separated list for exiftool."""
+        return ", ".join(sorted(self.value))  # Sort for consistent output
 
 class KallisteSeqTag(KallisteBaseTag):
     """A tag containing an ordered sequence of strings.

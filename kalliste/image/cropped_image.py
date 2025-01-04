@@ -79,13 +79,30 @@ class CroppedImage:
                 for tag_name, tag_values in self.region.kalliste_tags.items():
                     logger.info(f"  {tag_name}: {tag_values}")
                 
+                # Get NIMA quality assessment
+                nima_tag = self.region.kalliste_tags.get("KallisteNimaOverallAssessment")
+                quality_folder = "unrated"  # default folder
+                if nima_tag and isinstance(nima_tag, KallisteStringTag):
+                    quality_folder = nima_tag.value
+                
                 logger.info("Resizing to SDXL")
                 sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
                 
-                logger.info("Saving image")
+
+                # Determine Kalliste Assessment
+                assessment = self._determine_kalliste_assessment(self.region)
+                
+                # Add the assessment to tags
+                self.region.add_tag(KallisteStringTag(
+                    "KallisteAssessment",
+                    assessment
+                ))
+                
+                logger.info(f"Saving image to {assessment} folder")
                 output_filename = f"{self.source_path.stem}_{self.region.region_type}_{uuid.uuid4()}.png"
-                output_path = self.output_dir / output_filename
-                sdxl_image.save(output_path, "PNG", optimize=True)
+                quality_dir = self.output_dir / assessment
+                quality_dir.mkdir(exist_ok=True)
+                output_path = quality_dir / output_filename
                 
                 logger.info("Writing metadata")
                 self._write_metadata(output_path)
@@ -96,7 +113,40 @@ class CroppedImage:
         except Exception as e:
             logger.error(f"Failed to process cropped image: {e}")
             raise
+
+    def _determine_kalliste_assessment(self, region: Region) -> str:
+        """
+        Determine if an image should be accepted or rejected based on various quality metrics.
         
+        This is Kalliste's "secret sauce" for determining image quality, considering:
+        - Image type (person vs non-person)
+        - NIMA scores (overall, aesthetic, technical)
+        
+        Returns:
+            str: "accept" or "reject"
+        """
+        try:
+            # Check if this is a person photo
+            is_person = region.region_type.lower() in ['face', 'person']
+            
+            if is_person:
+                # For person photos, check individual NIMA scores
+                aesthetic_score = float(region.kalliste_tags.get("KallisteNimaAestheticScore", 0.0).value)
+                technical_score = float(region.kalliste_tags.get("KallistenimaTechnicalScore", 0.0).value)
+                
+                # Pass if either score is good enough
+                if aesthetic_score > 0.5 or technical_score > 0.5:
+                    return "accept"
+                return "reject"
+            else:
+                # For non-person photos, use overall assessment
+                overall_assessment = region.kalliste_tags.get("KallisteNimaOverallAssessment").value
+                return "accept" if overall_assessment == "high_quality" else "reject"
+                
+        except Exception as e:
+            logger.warning(f"Error determining Kalliste assessment: {e}. Defaulting to reject.")
+            return "reject"
+
     def _write_metadata(self, image_path: Path):
         """Write region's kalliste_tags to both caption file and XMP metadata."""
         try:
