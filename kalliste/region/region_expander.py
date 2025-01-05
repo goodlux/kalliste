@@ -76,7 +76,7 @@ class RegionExpander:
 
     @classmethod
     def expand_region_to_sdxl_ratios(cls, region: Region, 
-                                   img_width: int, img_height: int) -> Region:
+                                img_width: int, img_height: int) -> Region:
         """Expand region with equal padding, then adjust to nearest SDXL ratio within bounds."""
         # First apply type-specific padding equally
         expand_factor = cls.EXPANSION_FACTORS.get(
@@ -91,24 +91,24 @@ class RegionExpander:
         )
         
         # Get current dimensions after expansion
-        width, height = cls.get_dimensions(expanded)  # Fixed method name
+        width, height = cls.get_dimensions(expanded)
         current_ratio = width / height
+        center_x, center_y = cls.get_center_point(expanded)
         
-        # Find closest SDXL ratio that fits within image bounds
+        # Find the closest SDXL ratio that fits within image bounds
         valid_ratios = []
-        center_x, center_y = cls.get_center_point(expanded)  # Fixed method name
         
         for ratio, dims in cls.SDXL_RATIOS:
-            # Calculate required dimensions to match this ratio
-            if current_ratio < ratio:
-                # Would need to increase width
-                new_width = height * ratio
+            # Calculate dimensions needed to contain current region while matching ratio
+            if ratio > current_ratio:
+                # Need to add padding on sides (pillarboxing)
                 new_height = height
+                new_width = height * ratio
             else:
-                # Would need to increase height
+                # Need to add padding top/bottom (letterboxing)
                 new_width = width
                 new_height = width / ratio
-            
+                
             # Check if these dimensions would fit in image
             half_width = new_width / 2
             half_height = new_height / 2
@@ -126,11 +126,13 @@ class RegionExpander:
         # Use the closest valid ratio
         best_ratio = min(valid_ratios, key=lambda x: x[1])[0]
         
-        # Adjust dimensions to match ratio while staying within bounds
-        if current_ratio < best_ratio:
-            new_width = height * best_ratio
+        # Adjust dimensions to match ratio while preserving original content
+        if best_ratio > current_ratio:
+            # Add padding on sides
             new_height = height
+            new_width = height * best_ratio
         else:
+            # Add padding top/bottom
             new_width = width
             new_height = width / best_ratio
             
