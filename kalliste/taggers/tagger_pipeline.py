@@ -161,71 +161,66 @@ class TaggerPipeline:
             raise RuntimeError(f"Caption tag processing failed: {e}")
 
     def _process_nima_results(self, region: Region, nima_results: Dict[str, List[TagResult]]) -> None:
-        """Process NIMA results and add them to region's kalliste_tags."""
         try:
-            # Process technical quality results
-            if 'technical_quality' in nima_results:
-                tech_result = nima_results['technical_quality'][0]
+            # Add normalized scores
+            if 'technical_score' in nima_results:
+                region.add_tag(KallisteRealTag(
+                    "KallisteNimaScoreTechnical",
+                    float(nima_results['technical_score'][0].label)
+                ))
                 
-                # Add technical score (as a real number between 0-1)
-                tech_score_tag = KallisteRealTag(
-                    "KallisteNimaTechnicalScore",
-                    tech_result.confidence
-                )
-                region.add_tag(tech_score_tag)
+            if 'aesthetic_score' in nima_results:
+                region.add_tag(KallisteRealTag(
+                    "KallisteNimaScoreAesthetic",
+                    float(nima_results['aesthetic_score'][0].label)
+                ))
                 
-                # Add technical assessment (as a string)
-                tech_assess_tag = KallisteStringTag(
-                    "KallisteNimaTechnicalAssessment",
-                    tech_result.label
-                )
-                region.add_tag(tech_assess_tag)
+            # Add assessments
+            if 'technical_assessment' in nima_results:
+                region.add_tag(KallisteStringTag(
+                    "KallisteNimaAssessmentTechnical",
+                    nima_results['technical_assessment'][0].label
+                ))
                 
-                logger.debug(f"Added NIMA technical score: {tech_result.confidence:.3f} ({tech_result.label})")
-
-            # Process aesthetic quality results
-            if 'aesthetic_quality' in nima_results:
-                aes_result = nima_results['aesthetic_quality'][0]
+            if 'aesthetic_assessment' in nima_results:
+                region.add_tag(KallisteStringTag(
+                    "KallisteNimaAssessmentAesthetic",
+                    nima_results['aesthetic_assessment'][0].label
+                ))
                 
-                # Add aesthetic score (as a real number between 0-1)
-                aes_score_tag = KallisteRealTag(
-                    "KallisteNimaAestheticScore",
-                    aes_result.confidence
-                )
-                region.add_tag(aes_score_tag)
-                
-                # Add aesthetic assessment (as a string)
-                aes_assess_tag = KallisteStringTag(
-                    "KallisteNimaAestheticAssessment",
-                    aes_result.label
-                )
-                region.add_tag(aes_assess_tag)
-                
-                logger.debug(f"Added NIMA aesthetic score: {aes_result.confidence:.3f} ({aes_result.label})")
-
-            # Process overall quality assessment if available
-            if 'overall_quality' in nima_results:
-                overall_result = nima_results['overall_quality'][0]
-                
-                # Add overall score (as a real number between 0-1)
-                overall_score_tag = KallisteRealTag(
-                    "KallisteNimaOverallScore",
-                    overall_result.confidence
-                )
-                region.add_tag(overall_score_tag)
-                
-                # Add overall assessment (as a string)
-                overall_assess_tag = KallisteStringTag(
+            # Add calculated values
+            if 'overall_calculations' in nima_results:
+                for calc in nima_results['overall_calculations']:
+                    if calc.category == 'calc_average':
+                        region.add_tag(KallisteRealTag(
+                            "KallisteNimaCalcAverage",
+                            calc.confidence
+                        ))
+                    elif calc.category == 'calc_distribution':
+                        region.add_tag(KallisteRealTag(
+                            "KallisteNimaCalcDistribution",
+                            calc.confidence
+                        ))
+                        
+            # Add overall assessment
+            if 'overall_assessment' in nima_results:
+                region.add_tag(KallisteStringTag(
                     "KallisteNimaOverallAssessment",
-                    overall_result.label
-                )
-                region.add_tag(overall_assess_tag)
+                    nima_results['overall_assessment'][0].label
+                ))
                 
-                logger.debug(f"Added NIMA overall score: {overall_result.confidence:.3f} ({overall_result.label})")
-
+            # Set final Kalliste assessment based on overall
+            if 'overall_assessment' in nima_results:
+                final_assessment = "accept" if nima_results['overall_assessment'][0].label == "acceptable" else "reject"
+                region.add_tag(KallisteStringTag(
+                    "KallisteAssessment",
+                    final_assessment
+                ))
+                
         except Exception as e:
             logger.error(f"Failed to process NIMA results: {e}")
             raise RuntimeError(f"NIMA tag processing failed: {e}")
+
 
     def _process_tagger_results(self, region: Region, tagger_name: str, results: Dict[str, List[TagResult]]) -> None:
         """Process results from a specific tagger and add them to region's kalliste_tags."""

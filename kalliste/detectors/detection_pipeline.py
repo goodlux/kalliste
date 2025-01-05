@@ -8,6 +8,7 @@ from .base import Region
 from .yolo_detector import YOLODetector
 from .yolo_face_detector import YOLOFaceDetector
 from .yolo_classes import YOLO_CLASSES
+from ..tag.kalliste_tag import KallisteStringTag
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,16 @@ class DetectionPipeline:
             if 'face' in detection_types:
                 face_detector = YOLOFaceDetector(config)
                 face_config = config['face']
-                results.extend(face_detector.detect(
+                face_regions = face_detector.detect(
                     image_path=image_path,
                     confidence_threshold=face_config.get('confidence_threshold', YOLOFaceDetector.DEFAULT_CONFIDENCE_THRESHOLD),
                     nms_threshold=face_config.get('nms_threshold', YOLOFaceDetector.DEFAULT_NMS_THRESHOLD)
-                ))
+                )
+                # Set consistent region type for face detections
+                for region in face_regions:
+                    region.kalliste_tags.pop("KallisteRegionType", None)  # Remove any existing tag
+                    region.add_tag(KallisteStringTag("KallisteRegionType", "face"))
+                results.extend(face_regions)
                 detection_types.remove('face')
             
             # Handle YOLO detections for remaining types
@@ -75,10 +81,13 @@ class DetectionPipeline:
                     nms_threshold=nms_threshold
                 )
                 
-                # Map class IDs back to type names
+                # Map class IDs to type names and set consistent region type tags
                 class_id_to_type = {v: k for k, v in YOLO_CLASSES.items()}
                 for region in yolo_regions:
-                    region.region_type = class_id_to_type[int(region.region_type)]
+                    region_type = class_id_to_type[int(region.region_type)]
+                    region.region_type = region_type
+                    region.kalliste_tags.pop("KallisteRegionType", None)  # Remove any existing tag
+                    region.add_tag(KallisteStringTag("KallisteRegionType", region_type))
                 
                 results.extend(yolo_regions)
             

@@ -137,32 +137,14 @@ class CroppedImage:
     def _determine_kalliste_assessment(self, region: Region) -> str:
         """
         Determine if an image should be accepted or rejected based on various quality metrics.
-        
-        This is Kalliste's "secret sauce" for determining image quality, considering:
-        - Image type (person vs non-person)
-        - NIMA scores (overall, aesthetic, technical)
-        
         Returns:
             str: "accept" or "reject"
         """
         try:
-            # Check if this is a person photo
-            is_person = region.region_type.lower() in ['face', 'person']
-            
-            if is_person:
-                # For person photos, check individual NIMA scores
-                aesthetic_score = region.get_tag_value("KallisteNimaAestheticScore")
-                technical_score = region.get_tag_value("KallisteNimaTechnicalScore")
-                
-                # Pass if either score is good enough
-                if aesthetic_score > 0.5 or technical_score > 0.5:
-                    return "accept"
-                return "reject"
-            else:
-                # For non-person photos, use overall assessment
-                overall_assessment = region.kalliste_tags.get("KallisteNimaOverallAssessment").value
-                return "accept" if overall_assessment == "high_quality" else "reject"
-                
+            # For now, we'll base it on NIMA overall assessment
+            nima_overall = region.kalliste_tags.get("KallisteNimaOverallAssessment").value
+            return "accept" if nima_overall == "acceptable" else "reject"
+                    
         except Exception as e:
             logger.warning(f"Error determining Kalliste assessment: {e}. Defaulting to reject.")
             return "reject"

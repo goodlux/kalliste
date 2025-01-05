@@ -22,15 +22,14 @@ class Region:
 
     def __post_init__(self):
         """Initialize kalliste tags based on region data"""
-        # Store region_type as a tag as well
-        tag = KallisteStringTag("KallisteRegionType", self.region_type)
-        self.add_tag(tag)
+        
 
     def add_tag(self, tag) -> None:
         """Add or update a tag."""
         if tag.name in self.kalliste_tags:
             logger.warning(f"Overwriting existing tag: {tag.name}")
         self.kalliste_tags[tag.name] = tag
+    
     
     def get_tag(self, tag_name: str) -> Optional[Any]:
         """Get a tag if it exists."""
@@ -60,6 +59,7 @@ class Region:
     def has_tag(self, tag_name: str) -> bool:
         """Check if a tag exists."""
         return tag_name in self.kalliste_tags
+    
     
     def get_dimensions(self) -> tuple[int, int]:
         """Get width and height of region."""

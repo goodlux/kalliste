@@ -3,11 +3,8 @@ import logging
 import timm
 import torch
 import tensorflow as tf
+from tensorflow import keras
 import numpy as np
-# TODO: This code works, but for some reason these imports are not being recognized by the linter.
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.applications.mobilenet import MobileNet, preprocess_input
 import torchvision.transforms as T
 from ultralytics import YOLO
 from typing import Dict, Any
@@ -84,14 +81,16 @@ class ModelRegistry:
             
             def create_nima_model():
                 """Create NIMA model architecture."""
-                base_model = MobileNet(input_shape=(224, 224, 3), 
-                                    include_top=False, 
-                                    pooling='avg')
+                base_model = keras.applications.MobileNet(
+                    input_shape=(224, 224, 3), 
+                    include_top=False, 
+                    pooling='avg'
+                )
                 
-                x = Dropout(0.75)(base_model.output)
-                x = Dense(10, activation='softmax')(x)
+                x = keras.layers.Dropout(0.75)(base_model.output)
+                x = keras.layers.Dense(10, activation='softmax')(x)
                 
-                return Model(base_model.input, x)
+                return keras.models.Model(base_model.input, x)
             
             def create_nima_processor():
                 """Create preprocessing function for NIMA."""
@@ -110,7 +109,7 @@ class ModelRegistry:
                     img_array = tf.image.resize(img_array, (224, 224))
                     
                     # Preprocess for MobileNet
-                    img_array = preprocess_input(img_array)
+                    img_array = keras.applications.mobilenet.preprocess_input(img_array)
                     
                     # Add batch dimension if needed
                     if len(img_array.shape) == 3:

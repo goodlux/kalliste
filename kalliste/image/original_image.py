@@ -30,7 +30,6 @@ class OriginalImage:
         self.output_dir = output_dir
         self.config = config
 
-
     def _extract_lr_metadata(self) -> tuple[Dict[str, any], List[Dict[str, any]], List[str]]:
         """Extract all Lightroom metadata using a single exiftool call."""
         try:
@@ -46,8 +45,8 @@ class OriginalImage:
                 '-RegionAreaY',
                 '-RegionRotation',
                 '-WeightedFlatSubject',
-                '-Rating',           # Added Rating
-                '-Label',            # Added Label
+                '-XMP:Rating',           # Updated to use XMP namespace
+                '-XMP:Label',            # Updated to use XMP namespace
                 '-j',
                 '-G',
                 str(self.source_path)
@@ -67,13 +66,19 @@ class OriginalImage:
                 'photoshoot_id': self.source_path.parent.name,
             }
             
-            # Add Rating if present
-            if 'Rating' in metadata:
-                general_metadata['lr_rating'] = metadata['Rating']
+            # Add Rating if present (now using XMP namespace)
+            if 'XMP:Rating' in metadata:
+                rating = metadata['XMP:Rating']
+                if rating is not None:
+                    general_metadata['lr_rating'] = int(rating)
+                    logger.debug(f"Found LR rating: {rating}")
                 
             # Add Label if present (convert to lowercase)
-            if 'Label' in metadata:
-                general_metadata['lr_label'] = metadata['Label'].lower()
+            if 'XMP:Label' in metadata:
+                label = metadata['XMP:Label']
+                if label:
+                    general_metadata['lr_label'] = label.lower()
+                    logger.debug(f"Found LR label: {label}")
             
             # Process LR subject tags from WeightedFlatSubject
             lr_tags = []
@@ -184,11 +189,36 @@ class OriginalImage:
                     "KallisteOriginalFilePath", 
                     str(self.source_path.absolute())
                 ))
+
+                # Add training target from config
+                target_platform = self.config.get('target', {}).get('platform', 'SDXL')
+                region.add_tag(KallisteStringTag(
+                    "KallisteTrainingTarget",
+                    target_platform
+                ))
                 
                 # Add Lightroom tags if any exist
                 if lr_tags:
                     logger.debug(f"LR tags before creating bag tag: {lr_tags}")
                     region.add_tag(KallisteBagTag("KallisteLrTags", set(lr_tags)))
+                
+                # Add Rating if present - make sure to add it before creating CroppedImage
+                if 'lr_rating' in general_metadata:
+                    star_rating = general_metadata['lr_rating']
+                    rating_str = 'unrated' if star_rating == 0 else f"{star_rating}_star"
+                    region.add_tag(KallisteStringTag(
+                        "KallisteLrRating", 
+                        rating_str
+                    ))
+                    logger.debug(f"Added LR rating tag: {rating_str}")
+                
+                # Add Label if present - make sure to add it before creating CroppedImage
+                if 'lr_label' in general_metadata:
+                    region.add_tag(KallisteStringTag(
+                        "KallisteLrLabel", 
+                        general_metadata['lr_label']
+                    ))
+                    logger.debug(f"Added LR label tag: {general_metadata['lr_label']}")
                 
                 # Create and process cropped image
                 cropped = CroppedImage(
@@ -198,20 +228,6 @@ class OriginalImage:
                     config=self.config
                 )
                 await cropped.process()
-
-                # Add Rating if present
-                if 'lr_rating' in general_metadata:
-                    region.add_tag(KallisteIntegerTag(
-                        "KallisteLrRating", 
-                        int(general_metadata['lr_rating'])
-                    ))
-                
-                # Add Label if present
-                if 'lr_label' in general_metadata:
-                    region.add_tag(KallisteStringTag(
-                        "KallisteLrLabel", 
-                        general_metadata['lr_label']
-                    ))
                     
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")

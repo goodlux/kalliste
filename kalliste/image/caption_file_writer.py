@@ -54,7 +54,8 @@ class CaptionFileWriter:
     def _format_caption(self, kalliste_tags: Dict[str, Any]) -> str:
         """
         Format caption text from kalliste tags.
-        Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, {LrTags}, {Wd14Tags}
+        Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, 
+                [aesthetic], [high_quality], [label_{LrLabel}], [LrRating], {LrTags}, {Wd14Tags}
         """
         # Start with mandatory prefix
         caption_parts = ["ballerinaLux"]
@@ -76,6 +77,35 @@ class CaptionFileWriter:
         if "KallisteOrientationTag" in kalliste_tags:
             orientation = kalliste_tags["KallisteOrientationTag"].value
             caption_parts.append(orientation)
+
+        # Add "aesthetic" if KallisteNimaScoreAesthetic is "aesthetic"
+        if "KallisteNimaScoreAesthetic" in kalliste_tags:
+            nima_aesthetic = kalliste_tags["KallisteNimaScoreAesthetic"].value
+            if nima_aesthetic == "aesthetic":
+                caption_parts.append("aesthetic")
+                logger.debug("Added aesthetic tag based on NIMA score")
+
+        # Add "high_quality" if KallisteNimaScoreTechnical is "high_quality"
+        if "KallisteNimaScoreTechnical" in kalliste_tags:
+            nima_technical = kalliste_tags["KallisteNimaScoreTechnical"].value
+            if nima_technical == "high_quality":
+                caption_parts.append("high_quality")
+                logger.debug("Added high_quality tag based on NIMA score")
+
+        # Add label_{LrLabel} if it exists
+        if "KallisteLrLabel" in kalliste_tags:
+            lr_label = kalliste_tags["KallisteLrLabel"].value
+            if lr_label:
+                label_tag = f"label_{lr_label.lower()}"
+                caption_parts.append(label_tag)
+                logger.debug(f"Added Lightroom label tag: {label_tag}")
+
+        # Add LrRating if it exists
+        if "KallisteLrRating" in kalliste_tags:
+            lr_rating = kalliste_tags["KallisteLrRating"].value
+            if lr_rating:
+                caption_parts.append(lr_rating)
+                logger.debug(f"Added Lightroom rating: {lr_rating}")
         
         # Add LR tags if they exist
         if "KallisteLrTags" in kalliste_tags:
