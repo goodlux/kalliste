@@ -1,5 +1,5 @@
 """Simple tag classes for Kalliste metadata."""
-from typing import Set, Any, List, Dict, Sequence
+from typing import Set, Any, List, Dict, Sequence, Union
 from datetime import datetime
 import logging
 
@@ -32,8 +32,7 @@ class KallisteStringTag(KallisteBaseTag):
         return isinstance(value, str)
 
 class KallisteBagTag(KallisteBaseTag):
-    """A tag containing an unordered set of strings.
-    XMP format: comma-separated list that exiftool will format as a bag"""
+    """A tag containing an unordered set of strings."""
     def __init__(self, name: str, value: Set[str]):
         super().__init__(name)
         if not self.validate_value(value):
@@ -45,7 +44,15 @@ class KallisteBagTag(KallisteBaseTag):
 
     def to_xmp(self) -> str:
         """Format as comma-separated list for exiftool."""
-        return ", ".join(sorted(self.value))  # Sort for consistent output
+        # Clean up any Python formatting artifacts and normalize
+        cleaned_values = []
+        for val in self.value:
+            # Remove Python set/dict formatting chars
+            val = str(val).strip("'{}")
+            # Remove any extra whitespace
+            val = val.strip()
+            cleaned_values.append(val)
+        return ", ".join(sorted(cleaned_values))
 
 class KallisteSeqTag(KallisteBaseTag):
     """A tag containing an ordered sequence of strings.
@@ -60,8 +67,23 @@ class KallisteSeqTag(KallisteBaseTag):
         return isinstance(value, (list, tuple))
 
     def to_xmp(self) -> str:
-        """Format as comma-separated values in parentheses."""
-        return "(" + ",".join(self.value) + ")"
+        """Format as comma-separated values for exiftool."""
+        return ",".join(self.value)
+
+class KallisteBooleanTag(KallisteBaseTag):
+    """A tag containing a boolean value."""
+    def __init__(self, name: str, value: bool):
+        super().__init__(name)
+        if not self.validate_value(value):
+            raise ValueError(f"Value must be boolean, got {type(value)}")
+        self.value = value
+
+    def validate_value(self, value: Any) -> bool:
+        return isinstance(value, bool)
+
+    def to_xmp(self) -> str:
+        """Format as 'True' or 'False' for exiftool."""
+        return str(self.value).lower()  # exiftool expects lowercase true/false
 
 class KallisteAltTag(KallisteBaseTag):
     """A tag containing alternative versions (like multi-language text).
@@ -77,9 +99,8 @@ class KallisteAltTag(KallisteBaseTag):
                                              for k, v in value.items())
 
     def to_xmp(self) -> str:
-        """Format as language-text pairs in square brackets."""
-        pairs = [f"{lang}:{text}" for lang, text in self.value.items()]
-        return "[" + ",".join(pairs) + "]"
+        """Format as comma-separated lang:text pairs for exiftool."""
+        return ",".join(f"{lang}:{text}" for lang, text in self.value.items())
 
 class KallisteIntegerTag(KallisteBaseTag):
     """A tag containing an integer value."""
@@ -119,3 +140,82 @@ class KallisteDateTag(KallisteBaseTag):
         """Format as ISO 8601 date string with timezone."""
         # Format with timezone offset (exiftool expects this format)
         return self.value.astimezone().isoformat()
+    
+class KallisteStructureTag(KallisteBaseTag):
+    """
+    A tag containing structured data following exiftool's XMP structure format.
+    
+    Examples:
+        Simple structure:
+            KallisteStructureTag("KallisteFaceLocation", {
+                "x": 100,
+                "y": 200,
+                "width": 50,
+                "height": 75,
+                "confidence": 0.95
+            })
+            
+        Nested structure:
+            KallisteStructureTag("KallisteDetection", {
+                "detector": "yolov8",
+                "location": {
+                    "x": 100,
+                    "y": 200,
+                    "width": 50,
+                    "height": 75
+                },
+                "confidence": 0.95
+            })
+            
+        Array of structures:
+            KallisteStructureTag("KallisteDetections", [
+                {
+                    "detector": "yolov8",
+                    "class": "person",
+                    "confidence": 0.95
+                },
+                {
+                    "detector": "yolov8", 
+                    "class": "face",
+                    "confidence": 0.87
+                }
+            ])
+    """
+    def __init__(self, name: str, value: Union[Dict[str, Any], List[Dict[str, Any]]]):
+        super().__init__(name)
+        if not self.validate_value(value):
+            raise ValueError(f"Value must be dict or list of dicts, got {type(value)}")
+        self.value = value
+
+    def validate_value(self, value: Any) -> bool:
+        """Validate structure format recursively."""
+        if isinstance(value, dict):
+            return all(isinstance(k, str) for k in value.keys())
+        elif isinstance(value, list):
+            return all(isinstance(v, dict) and self.validate_value(v) for v in value)
+        return False
+
+    def _format_value(self, v: Any) -> str:
+        """Format a value according to exiftool's structure syntax."""
+        if isinstance(v, dict):
+            return "{" + ",".join(f"{k}={self._format_value(val)}" for k, val in v.items()) + "}"
+        elif isinstance(v, list):
+            return "[" + ",".join(self._format_value(x) for x in v) + "]"
+        elif isinstance(v, bool):
+            return str(v).lower()
+        elif isinstance(v, (int, float)):
+            return str(v)
+        else:
+            # Strings and everything else - escape commas and wrap in quotes if needed
+            val_str = str(v)
+            if ',' in val_str or ' ' in val_str:
+                return f'"{val_str}"'
+            return val_str
+
+    def to_xmp(self) -> str:
+        """
+        Format according to exiftool's XMP structure syntax.
+        Single structure: {field1=value1,field2=value2}
+        Array of structures: [{field1=value1},{field1=value2}]
+        """
+        return self._format_value(self.value)

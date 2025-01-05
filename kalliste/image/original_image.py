@@ -187,6 +187,7 @@ class OriginalImage:
                 
                 # Add Lightroom tags if any exist
                 if lr_tags:
+                    logger.debug(f"LR tags before creating bag tag: {lr_tags}")
                     region.add_tag(KallisteBagTag("KallisteLrTags", set(lr_tags)))
                 
                 # Create and process cropped image

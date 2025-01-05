@@ -36,6 +36,27 @@ class Region:
         """Get a tag if it exists."""
         return self.kalliste_tags.get(tag_name)
     
+    
+    def get_tag_value(self, tag_name: str, default = None) -> Any:
+        """
+        Get a tag's value directly, handling different tag types.
+        Returns the value in its native type (float for KallisteRealTag, 
+        int for KallisteIntegerTag, etc.)
+        
+        Args:
+            tag_name: Name of the tag to retrieve
+            default: Optional default value if tag doesn't exist
+            
+        Returns:
+            The tag's value in its native type, or the default value
+        """
+        tag = self.kalliste_tags.get(tag_name)
+        if tag is None:
+            return default
+            
+        return tag.value
+    
+
     def has_tag(self, tag_name: str) -> bool:
         """Check if a tag exists."""
         return tag_name in self.kalliste_tags

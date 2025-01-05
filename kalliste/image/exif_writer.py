@@ -6,7 +6,7 @@ import logging
 from io import StringIO
 import tempfile
 import os
-from ..tag.kalliste_tag import KallisteBagTag, KallisteSeqTag, KallisteAltTag, KallisteRealTag, KallisteIntegerTag, KallisteDateTag
+from ..tag.kalliste_tag import KallisteBagTag, KallisteSeqTag, KallisteAltTag, KallisteRealTag, KallisteIntegerTag, KallisteDateTag, KallisteStructureTag, KallisteStringTag, KallisteBooleanTag
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,8 @@ class ExifWriter:
     def __init__(self, source_path: Path, dest_path: Path):
         self.source_path = source_path
         self.dest_path = dest_path
-        
+
+
     def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
         """Write kalliste tags to XMP metadata."""
         temp_config = None
@@ -71,8 +72,10 @@ class ExifWriter:
             logger.error(f"Error validating paths: {e}")
             return False
 
+
     def _generate_config(self, kalliste_tags: Dict[str, Any]) -> str:
         """Generate exiftool config content using StringIO."""
+
         config = StringIO()
         config.write("# Generated Kalliste XMP namespace configuration\n\n")
         config.write("%Image::ExifTool::UserDefined = (\n")
@@ -87,48 +90,73 @@ class ExifWriter:
         config.write("%Image::ExifTool::UserDefined::Kalliste = (\n")
         config.write(" GROUPS => { 0 => 'XMP', 1 => 'XMP-Kalliste', 2 => 'Image' },\n")
         config.write(" NAMESPACE => { 'Kalliste' => 'http://kalliste.ai/1.0/' },\n")
-        config.write(" WRITABLE => 'string',\n")
+        
         # Add tag definitions based on tag type
-        for tag_name, tag in kalliste_tags.items():
+        for tag_name, tag in kalliste_tags.items():  # Added this loop back!
             if isinstance(tag, KallisteBagTag):
                 config.write(f" '{tag_name}' => {{ List => 'Bag', Writable => 'string' }},\n")
             elif isinstance(tag, KallisteSeqTag):
-                config.write(f" '{tag_name}' => {{ List => 'Seq', Writable => 'string' }},\n")
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   List => 'Seq',\n")
+                config.write("   Writable => 1,\n")
+                config.write(" },\n")
             elif isinstance(tag, KallisteAltTag):
-                config.write(f" '{tag_name}' => {{ List => 'Alt', Writable => 'lang-alt' }},\n")
-            elif isinstance(tag, KallisteRealTag):
-                config.write(f" '{tag_name}' => {{ Writable => 'real' }},\n")
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   List => 'Alt',\n")
+                config.write("   Writable => 1,\n")
+                config.write(" },\n")
+            elif isinstance(tag, KallisteBooleanTag):
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'boolean',\n")
+                config.write(" },\n")
             elif isinstance(tag, KallisteIntegerTag):
-                config.write(f" '{tag_name}' => {{ Writable => 'integer' }},\n")
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'integer',\n")
+                config.write(" },\n")
+            elif isinstance(tag, KallisteRealTag):
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'real',\n")
+                config.write(" },\n")
             elif isinstance(tag, KallisteDateTag):
-                config.write(f" '{tag_name}' => {{ Writable => 'date' }},\n")
-            else:  # KallisteStringTag and any others default to string
-                config.write(f" '{tag_name}' => {{ Writable => 'string' }},\n")
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'date',\n")
+                config.write(" },\n")
+            elif isinstance(tag, KallisteStructureTag):
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'string',\n")
+                config.write(" },\n")
+            else:  # KallisteStringTag and any others
+                config.write(f" '{tag_name}' => {{\n")
+                config.write("   Writable => 'string',\n")
+                config.write(" },\n")
+                    
         config.write(");\n")
         config.write("1;\n")
-        return config.getvalue()
         
+        return config.getvalue()
+
     def _build_exiftool_command(self, kalliste_tags: Dict[str, Any], config_path: str) -> List[str]:
         """Build exiftool command with proper XMP tags."""
-        # Start with basic command to copy all metadata
         cmd = [
             "exiftool",
             "-config", config_path,
             "-TagsFromFile", str(self.source_path),
             "-all:all",
+            "-sep", ",",  # For bag tags
+            "-struct"     # For structure tags
         ]
-        
-        # Add each kalliste tag as XMP using the tag's own formatting
+                
+        # Add each kalliste tag
         for tag_name, tag in kalliste_tags.items():
-            xmp_value = tag.to_xmp()
-            cmd.extend([f"-XMP-Kalliste:{tag_name}={xmp_value}"])
+            # Use normal syntax for all tags
+            cmd.extend([f"-XMP-Kalliste:{tag_name}={tag.value}"])
         
-        # Add destination and overwrite flag
         cmd.extend([str(self.dest_path), "-overwrite_original"])
         
         logger.debug(f"Built exiftool command: {' '.join(cmd)}")
         return cmd
-        
+            
+
     def _execute_command(self, cmd: List[str]) -> bool:
         """Execute exiftool command and handle results."""
         try:

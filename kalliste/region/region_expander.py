@@ -8,54 +8,48 @@ logger = logging.getLogger(__name__)
 class RegionExpander:
     """Expands regions to match training model ratios."""
     
-    # SDXL dimensions and their ratios
+    # SDXL dimensions with common aspect ratios
     SDXL_DIMENSIONS = [
-        ((1024, 1024), (1, 1)),      # Square
-        ((1152, 896), (9, 7)),       # Landscape
-        ((896, 1152), (7, 9)),       # Portrait
-        ((1216, 832), (19, 13)),     # Landscape
-        ((832, 1216), (13, 19)),     # Portrait
-        ((1344, 768), (7, 4)),       # Landscape
-        ((768, 1344), (4, 7)),       # Portrait
-        ((1536, 640), (12, 5)),      # Landscape
-        ((640, 1536), (5, 12))       # Portrait
+        (1024, 1024),  # 1:1
+        (896, 1152),   # 3:4 (portrait)
+        (1152, 896),   # 4:3 (landscape)
+        (832, 1216),   # 2:3 (portrait)
+        (1216, 832),   # 3:2 (landscape)
+        (768, 1344),   # 1:2 (portrait)
+        (1344, 768),   # 2:1 (landscape)
     ]
     
-    SDXL_RATIOS = [(w/h, (w,h)) for (w,h), _ in SDXL_DIMENSIONS]
+    # Calculate ratios once
+    SDXL_RATIOS = [(w/h, (w,h)) for w, h in SDXL_DIMENSIONS]
     
-    # Type-specific expansion factors
+    # Single expansion factor based on region type
     EXPANSION_FACTORS = {
-        'face': (0.4, 0.5),     # 40% horizontal, 50% vertical
-        'person': (0.15, 0.1),  # 15% horizontal, 10% vertical
-        'default': (0.05, 0.05) # 5% default padding
+        'face': 0.4,    # 40% expansion in all directions
+        'person': 0.15, # 15% expansion in all directions
+        'default': 0.05 # 5% default expansion
     }
     
     @staticmethod
-    def center_point(region: Region) -> Tuple[float, float]:
-        """Calculate the center point of a region."""
-        center_x = (region.x1 + region.x2) / 2
-        center_y = (region.y1 + region.y2) / 2
-        return (center_x, center_y)
-    
-    @staticmethod
-    def region_dimensions(region: Region) -> Tuple[int, int]:
+    def get_dimensions(region: Region) -> tuple[int, int]:
         """Calculate width and height of a region."""
-        width = region.x2 - region.x1
-        height = region.y2 - region.y1
-        return (width, height)
+        return (region.x2 - region.x1, region.y2 - region.y1)
+        
+    @staticmethod
+    def get_center_point(region: Region) -> tuple[float, float]:
+        """Calculate the center point of a region."""
+        return ((region.x1 + region.x2) / 2, (region.y1 + region.y2) / 2)
     
     @classmethod
     def expand_region(cls, region: Region, 
-                     expand_x: float = 0.0,
-                     expand_y: float = 0.0,
+                     expand_factor: float = 0.0,
                      image_size: Optional[Tuple[int, int]] = None) -> Region:
-        """Expand a region by specified percentages while respecting image boundaries."""
-        width, height = cls.region_dimensions(region)
-        center_x, center_y = cls.center_point(region)
+        """Expand a region equally in all directions, respecting image boundaries."""
+        width, height = cls.get_dimensions(region)
+        center_x, center_y = cls.get_center_point(region)
         
-        # Calculate new dimensions
-        new_width = width * (1 + expand_x)
-        new_height = height * (1 + expand_y)
+        # Calculate new dimensions with equal expansion
+        new_width = width * (1 + expand_factor)
+        new_height = height * (1 + expand_factor)
         
         # Calculate new coordinates from center
         x1 = center_x - (new_width / 2)
@@ -79,48 +73,84 @@ class RegionExpander:
             region_type=region.region_type,
             confidence=region.confidence
         )
-    
+
     @classmethod
     def expand_region_to_sdxl_ratios(cls, region: Region, 
                                    img_width: int, img_height: int) -> Region:
-        """Expand region to match closest SDXL ratio while maintaining center."""
-        # First apply type-specific padding
-        expand_x, expand_y = cls.EXPANSION_FACTORS.get(
+        """Expand region with equal padding, then adjust to nearest SDXL ratio within bounds."""
+        # First apply type-specific padding equally
+        expand_factor = cls.EXPANSION_FACTORS.get(
             region.region_type.lower(), 
             cls.EXPANSION_FACTORS['default']
         )
         
-        padded_region = cls.expand_region(
+        expanded = cls.expand_region(
             region,
-            expand_x=expand_x,
-            expand_y=expand_y,
+            expand_factor=expand_factor,
             image_size=(img_width, img_height)
         )
         
-        # Get current dimensions
-        width, height = cls.region_dimensions(padded_region)
+        # Get current dimensions after expansion
+        width, height = cls.get_dimensions(expanded)  # Fixed method name
         current_ratio = width / height
         
-        # Find closest SDXL ratio
-        target_ratio, _ = min(cls.SDXL_RATIOS, 
-                            key=lambda x: abs(x[0] - current_ratio))
+        # Find closest SDXL ratio that fits within image bounds
+        valid_ratios = []
+        center_x, center_y = cls.get_center_point(expanded)  # Fixed method name
         
-        # Calculate expansion factors needed to match ratio
-        if current_ratio < target_ratio:
-            # Need to increase width
-            ratio_expand_x = (height * target_ratio / width) - 1
-            ratio_expand_y = 0
-        else:
-            # Need to increase height
-            ratio_expand_x = 0
-            ratio_expand_y = (width / target_ratio / height) - 1
+        for ratio, dims in cls.SDXL_RATIOS:
+            # Calculate required dimensions to match this ratio
+            if current_ratio < ratio:
+                # Would need to increase width
+                new_width = height * ratio
+                new_height = height
+            else:
+                # Would need to increase height
+                new_width = width
+                new_height = width / ratio
             
-        # Apply ratio-matching expansion
-        final_region = cls.expand_region(
-            padded_region,
-            expand_x=ratio_expand_x,
-            expand_y=ratio_expand_y,
-            image_size=(img_width, img_height)
-        )
+            # Check if these dimensions would fit in image
+            half_width = new_width / 2
+            half_height = new_height / 2
+            
+            if (center_x - half_width >= 0 and 
+                center_x + half_width <= img_width and
+                center_y - half_height >= 0 and 
+                center_y + half_height <= img_height):
+                valid_ratios.append((ratio, abs(ratio - current_ratio)))
         
-        return final_region
+        if not valid_ratios:
+            # If no ratio fits perfectly, return the expanded region as is
+            return expanded
+            
+        # Use the closest valid ratio
+        best_ratio = min(valid_ratios, key=lambda x: x[1])[0]
+        
+        # Adjust dimensions to match ratio while staying within bounds
+        if current_ratio < best_ratio:
+            new_width = height * best_ratio
+            new_height = height
+        else:
+            new_width = width
+            new_height = width / best_ratio
+            
+        # Create final region centered on original
+        x1 = center_x - (new_width / 2)
+        x2 = center_x + (new_width / 2)
+        y1 = center_y - (new_height / 2)
+        y2 = center_y + (new_height / 2)
+        
+        # Final boundary check
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(img_width, x2)
+        y2 = min(img_height, y2)
+        
+        return Region(
+            x1=int(x1),
+            y1=int(y1),
+            x2=int(x2),
+            y2=int(y2),
+            region_type=region.region_type,
+            confidence=region.confidence
+        )

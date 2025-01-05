@@ -87,9 +87,8 @@ class CroppedImage:
                 
                 logger.info("Resizing to SDXL")
                 sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
-                
 
-                # Determine Kalliste Assessment
+                # Determine Kalliste assessment
                 assessment = self._determine_kalliste_assessment(self.region)
                 
                 # Add the assessment to tags
@@ -98,12 +97,15 @@ class CroppedImage:
                     assessment
                 ))
                 
+                # Save the image to the accept/reject assessment folder
                 logger.info(f"Saving image to {assessment} folder")
                 output_filename = f"{self.source_path.stem}_{self.region.region_type}_{uuid.uuid4()}.png"
                 quality_dir = self.output_dir / assessment
                 quality_dir.mkdir(exist_ok=True)
                 output_path = quality_dir / output_filename
-                
+                sdxl_image.save(output_path, "PNG", optimize=True)
+
+                # Copy the metadata from original image, add kalliste tags, write the caption file
                 logger.info("Writing metadata")
                 self._write_metadata(output_path)
                 logger.info("Metadata written")
@@ -112,6 +114,24 @@ class CroppedImage:
                 
         except Exception as e:
             logger.error(f"Failed to process cropped image: {e}")
+            raise
+        
+    def _write_metadata(self, image_path: Path):
+        """Write region's kalliste_tags to both caption file and XMP metadata."""
+        try:
+            # Write caption file
+            txt_path = image_path.with_suffix('.txt')
+            caption_writer = CaptionFileWriter(txt_path)
+            if not caption_writer.write_caption(self.region.kalliste_tags):
+                logger.error("Failed to write caption file")
+                
+            # Write XMP metadata
+            exif_writer = ExifWriter(self.source_path, image_path)
+            if not exif_writer.write_tags(self.region.kalliste_tags):
+                logger.error("Failed to write XMP metadata")
+                
+        except Exception as e:
+            logger.error(f"Failed to write metadata: {e}")
             raise
 
     def _determine_kalliste_assessment(self, region: Region) -> str:
@@ -131,8 +151,8 @@ class CroppedImage:
             
             if is_person:
                 # For person photos, check individual NIMA scores
-                aesthetic_score = float(region.kalliste_tags.get("KallisteNimaAestheticScore", 0.0).value)
-                technical_score = float(region.kalliste_tags.get("KallistenimaTechnicalScore", 0.0).value)
+                aesthetic_score = region.get_tag_value("KallisteNimaAestheticScore")
+                technical_score = region.get_tag_value("KallisteNimaTechnicalScore")
                 
                 # Pass if either score is good enough
                 if aesthetic_score > 0.5 or technical_score > 0.5:
@@ -146,21 +166,3 @@ class CroppedImage:
         except Exception as e:
             logger.warning(f"Error determining Kalliste assessment: {e}. Defaulting to reject.")
             return "reject"
-
-    def _write_metadata(self, image_path: Path):
-        """Write region's kalliste_tags to both caption file and XMP metadata."""
-        try:
-            # Write caption file
-            txt_path = image_path.with_suffix('.txt')
-            caption_writer = CaptionFileWriter(txt_path)
-            if not caption_writer.write_caption(self.region.kalliste_tags):
-                logger.error("Failed to write caption file")
-                
-            # Write XMP metadata
-            exif_writer = ExifWriter(self.source_path, image_path)
-            if not exif_writer.write_tags(self.region.kalliste_tags):
-                logger.error("Failed to write XMP metadata")
-                
-        except Exception as e:
-            logger.error(f"Failed to write metadata: {e}")
-            raise

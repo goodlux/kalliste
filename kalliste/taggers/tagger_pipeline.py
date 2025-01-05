@@ -10,7 +10,7 @@ from .caption_tagger import CaptionTagger
 from .orientation_tagger import OrientationTagger
 from .NIMA_tagger import NIMATagger
 from ..types import TagResult
-from ..tag.kalliste_tag import KallisteRealTag, KallisteStringTag, KallisteBagTag
+from ..tag.kalliste_tag import KallisteRealTag, KallisteStringTag, KallisteBagTag, KallisteStructureTag
 from ..region import Region
 
 logger = logging.getLogger(__name__)
@@ -65,13 +65,16 @@ class TaggerPipeline:
                 region.add_tag(orientation_tag)
                 
                 # Save raw orientation data as bag
-                raw_orientations = {
-                    f"{tag.label}({tag.confidence:.2f})" 
+                orientation_data = [
+                    {
+                        "orientation": tag.label,
+                        "confidence": tag.confidence
+                    }
                     for tag in orientation_results
-                }
-                raw_tag = KallisteBagTag(
-                    "KallisteRawOrientationData",
-                    raw_orientations
+                ]
+                raw_tag = KallisteStructureTag(
+                    "KallisteOrientationDataRaw",
+                    orientation_data
                 )
                 region.add_tag(raw_tag)
                 
@@ -81,28 +84,61 @@ class TaggerPipeline:
             logger.error(f"Failed to process orientation results: {e}")
             raise RuntimeError(f"Orientation tag processing failed: {e}")
 
+
     def _process_wd14_results(self, region: Region, wd14_results: List[TagResult]) -> None:
         """Process WD14 results and add them to region's kalliste_tags."""
         try:
             if wd14_results:
                 logger.info("Processing wd14 tags:")
-                # Get tags without confidences for SDXL
-                wd14_tags = {tag.label for tag in wd14_results}
-                logger.info(f"  Raw wd14 tags: {wd14_results}")
-                logger.info(f"  Processed wd14 tags: {wd14_tags}")
                 
-                tag = KallisteBagTag("KallisteWd14Tags", wd14_tags)
-                region.add_tag(tag)
+                # Map numeric categories to meaningful names
+                category_map = {
+                    '0': 'Attributes',
+                    '4': 'Character',
+                    '9': 'Content'
+                }
+                
+                # Group tags by category
+                category_tags = {}
+                all_tags = set()  # For storing all tags
+                
+                for tag in wd14_results:
+                    # Add to all tags
+                    all_tags.add(tag.label)
+                    
+                    # Group by category using friendly names
+                    category_name = category_map.get(tag.category, 'Other')
+                    if category_name not in category_tags:
+                        category_tags[category_name] = set()
+                    category_tags[category_name].add(tag.label)
+                
+                logger.info(f"  Raw wd14 tags by category: {category_tags}")
+                
+                # Add category-specific tags
+                for category, tags in category_tags.items():
+                    category_tag_name = f"KallisteWd14{category}"
+                    region.add_tag(KallisteBagTag(category_tag_name, tags))
+
+                
+                # Add combined tags collection (for compatibility)
+                region.add_tag(KallisteBagTag("KallisteWd14Tags", all_tags))
                 
                 # Save raw WD14 data with confidences as bag
-                raw_wd14 = {
-                    f"{tag.label}({tag.confidence:.2f})" 
+                wd14_data = [
+                    {
+                        "tag": tag.label,
+                        "confidence": tag.confidence,
+                        "category": category_map.get(tag.category, 'Other')
+                    }
                     for tag in wd14_results
-                }
-                raw_tag = KallisteBagTag("KallisteRawWd14Tags", raw_wd14)
-                region.add_tag(raw_tag)
+                ]
+                raw_wd14_tag = KallisteStructureTag(
+                    "KallisteWd14TagsRaw",
+                    wd14_data
+                )
+                region.add_tag(raw_wd14_tag)
                 
-                logger.debug(f"Added WD14 tags: {len(wd14_tags)} tags with raw data")
+                logger.debug(f"Added WD14 tags: {len(all_tags)} total tags across {len(category_tags)} categories")
                 
         except Exception as e:
             logger.error(f"Failed to process WD14 results: {e}")
@@ -196,8 +232,12 @@ class TaggerPipeline:
         try:
             if tagger_name == 'orientation' and 'orientation' in results:
                 self._process_orientation_results(region, results['orientation'])
-            elif tagger_name == 'wd14' and '0' in results:
-                self._process_wd14_results(region, results['0'])
+            elif tagger_name == 'wd14':  # Process all WD14 categories
+                # Combine all WD14 results into a single list
+                all_wd14_results = []
+                for category_results in results.values():
+                    all_wd14_results.extend(category_results)
+                self._process_wd14_results(region, all_wd14_results)
             elif tagger_name == 'caption' and 'caption' in results:
                 self._process_caption_results(region, results['caption'])
             elif tagger_name == 'nima':
@@ -206,6 +246,7 @@ class TaggerPipeline:
         except Exception as e:
             logger.error(f"Failed to process {tagger_name} results: {e}")
             raise RuntimeError(f"Tag processing failed for {tagger_name}: {e}")
+        
     
     async def tag_pillow_image(self, image: Image.Image, region_type: str, region: Optional[Region] = None) -> Dict[str, List[TagResult]]:
         """Run configured taggers for this region type using a PIL Image."""

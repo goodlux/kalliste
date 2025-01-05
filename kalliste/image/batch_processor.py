@@ -4,176 +4,160 @@ from .batch import Batch
 from ..types import ProcessingStatus
 from ..model.model_registry import ModelRegistry
 import asyncio
+import signal
 import logging
 import yaml
 
 logger = logging.getLogger(__name__)
 
 class BatchProcessor:
-    def __init__(self, input_root: Path, output_root: Path, config: Optional[Dict] = None):
-        self.input_root = input_root
-        self.output_root = output_root
-        self.config = self._load_default_config() if config is None else config
+    """Process batches of images, where each batch is a directory in the input path."""
+    
+    def __init__(self, input_path: str, output_path: str, config: Optional[Dict] = None):
+        """
+        Initialize batch processor with input and output paths.
+        
+        Args:
+            input_path: String path to root directory containing batch folders
+            output_path: String path to root directory for processed output
+            config: Optional processing configuration
+        """
+        self.input_path = Path(input_path)
+        self.output_path = Path(output_path)
+        self.config = config or self._load_config()
         self.batches: List[Batch] = []
-        self._initialized = False
         self.status = ProcessingStatus.PENDING
-        
-    def _load_default_config(self) -> Dict:
-        """Load default detection config."""
+        self._shutdown_event = asyncio.Event()
+        self._setup_signal_handlers()
+
+    def _setup_signal_handlers(self):
+        """Set up handlers for graceful shutdown."""
         try:
-            config_path = Path(__file__).parent.parent / 'default_detection_config.yaml'
-            logger.info(f"Loading default config from: {config_path}")
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop yet, will set up in process_all
+            return
             
-            with open(config_path) as f:
-                config = yaml.safe_load(f)
-                logger.debug("Default config loaded successfully")
-                return config
-                
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self._handle_shutdown(s)))
+
+    async def _handle_shutdown(self, sig):
+        """Handle shutdown signal gracefully."""
+        logger.info(f"Received signal {sig.name}, initiating shutdown...")
+        self._shutdown_event.set()
+        
+        # Cancel any running tasks
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+            
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Cleanup
+        try:
+            logger.info("Cleaning up model registry...")
+            await ModelRegistry.cleanup()
         except Exception as e:
-            logger.error(f"Failed to load default config from {config_path}", exc_info=True)
-            raise RuntimeError(f"Cannot load default config: {str(e)}") from e
-        
-    async def initialize(self):
-        """Initialize processor and scan for batches."""
-        logger.info(f"Initializing BatchProcessor with input_root={self.input_root}, output_root={self.output_root}")
-        
+            logger.error(f"Error during cleanup: {e}")
+            
+        logger.info("Shutdown complete")
+
+    def _load_config(self) -> Dict:
+        """Load default configuration file."""
+        config_path = Path(__file__).parent.parent / 'default_detection_config.yaml'
         try:
-            # Initialize model registry first
-            logger.info("Initializing model registry")
-            await ModelRegistry.initialize()
+            return yaml.safe_load(config_path.read_text())
+        except Exception as e:
+            logger.error(f"Failed to load config from {config_path}", exc_info=True)
+            raise RuntimeError(f"Cannot load configuration: {e}") from e
+
+    async def setup(self) -> None:
+        """Initialize model registry and discover batches."""
+        logger.info(f"Setting up processor - Input: {self.input_path}, Output: {self.output_path}")
+        
+        # Initialize model registry
+        await ModelRegistry.initialize()
+        
+        # Find and create batches
+        self.batches = []
+        for folder in self.input_path.iterdir():
+            if not folder.is_dir():
+                continue
+                
+            # Create corresponding output directory
+            batch_output = self.output_path / folder.name
+            batch_output.mkdir(parents=True, exist_ok=True)
             
-            #breakpoint()  # Break here to verify ModelDownloadManager and ModelRegistry worked
-            
-            # Scan for batches (subdirectories)
-            logger.info(f"Scanning for batches in {self.input_root}")
-            
-            for item in self.input_root.iterdir():
-                if item.is_dir():
-                    batch_output = self.output_root / item.name
-                    batch_output.mkdir(parents=True, exist_ok=True)
-                    
-                    # Pass default config to Batch
-                    batch = Batch(
-                        input_path=item,
-                        output_path=batch_output,
-                        default_config=self.config  # Pass as default_config
-                    )
-                    self.batches.append(batch)
-                    
+            # Create batch
+            batch = Batch(
+                input_path=folder,
+                output_path=batch_output,
+                default_config=self.config
+            )
+            self.batches.append(batch)
+            logger.debug(f"Added batch: {folder.name}")
+        
+        n_batches = len(self.batches)
+        logger.info(f"Found {n_batches} batch{'es' if n_batches != 1 else ''}")
+
+    async def process_all(self) -> None:
+        """Process all batches in the input directory."""
+        if not self.batches:
+            await self.setup()
             if not self.batches:
-                logger.warning("No batch directories found")
-                
-            self._initialized = True
-                
-        except Exception as e:
-            logger.error("Failed to initialize batches", exc_info=True)
-            raise
+                logger.warning("No batches found to process")
+                return
 
-    def create_output_directory(self, output_dir: Path) -> None:
-        """Create output directory, handling errors gracefully"""
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Created output directory: {output_dir}")
-        except Exception as e:
-            logger.error(f"Failed to create output directory {output_dir}", exc_info=True)
-            raise FileNotFoundError(f"Cannot create output directory {output_dir}") from e
-        
-    def scan_for_batches(self) -> None:
-        """Scan input directory for batch folders"""
-        logger.info(f"Scanning for batches in {self.input_root}")
-        batch_count = 0
-        
-        try:
-            for item in self.input_root.iterdir():
-                if not item.is_dir():
-                    continue
-                    
-                output_dir = self.output_root / item.name
-                self.create_output_directory(output_dir)
-                self.batches.append(Batch(input_path=item, output_path=output_dir))
-                batch_count += 1
-                logger.debug(f"Added batch: {item.name}")
-                    
-            if batch_count == 0:
-                logger.warning(f"No batch directories found in {self.input_root}")
-            else:
-                logger.info(f"Found {batch_count} batches to process")
-                
-        except Exception as e:
-            logger.error("Failed to scan for batches", exc_info=True)
-            raise  # Preserve original error context
-                
-    async def process_batch(self, batch: Batch) -> Optional[Exception]:
-        """Process a single batch, returning any error that occurred"""
-        if not self._initialized:
-            raise RuntimeError("Cannot process batch before initialization")
-
-        logger.info(f"Starting batch: {batch.input_path.name}")
-        try:
-            await batch.process()
-            logger.info(f"Completed batch: {batch.input_path.name}")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to process batch {batch.input_path.name}", exc_info=True)
-            return e
-                
-    async def process_all(self):
-        """Process all images in input directory."""
-        if not self._initialized:
-            await self.initialize()
+        # Ensure signal handlers are set up in this loop
+        self._setup_signal_handlers()
 
         logger.info("Starting batch processing")
         self.status = ProcessingStatus.PROCESSING
-
-        if not self.batches:
-            logger.warning("No batches to process")
-            self.status = ProcessingStatus.COMPLETE
-            return
-
+        
+        # Count total images
+        total_images = sum(len(batch.images) for batch in self.batches)
+        processed_images = 0
         errors = []
-        total_images = 0
+
         try:
-            # First pass to count total images
+            # Process each batch
             for batch in self.batches:
-                batch.scan_for_images()
-                total_images += len(batch.images)
-            
-            logger.info(f"Found {total_images} total images across {len(self.batches)} batches")
-            
-            # Process batches one at a time
-            processed_images = 0
-            for batch in self.batches:
-                error = await self.process_batch(batch)
-                if error:
-                    errors.append((batch.input_path, error))
-                else:
+                if self._shutdown_event.is_set():
+                    logger.info("Shutdown requested, stopping processing")
+                    break
+                    
+                try:
+                    await batch.process()
                     processed_images += len(batch.images)
-                    logger.info(f"Progress: {processed_images}/{total_images} images processed")
-            
-            # Handle any errors that occurred
+                    logger.info(f"Progress: {processed_images}/{total_images} images")
+                except Exception as e:
+                    errors.append((batch.input_path.name, str(e)))
+                    logger.error(f"Failed to process {batch.input_path.name}", exc_info=True)
+
+            # Handle any errors
             if errors:
-                error_details = "\n".join(
-                    f"Batch {path.name}: {str(err)}" 
-                    for path, err in errors
-                )
-                raise RuntimeError(
-                    f"Failed to process {len(errors)} batch(es):\n{error_details}"
-                )
-            
-            self.status = ProcessingStatus.COMPLETE
-            logger.info(f"All batches processed successfully: {total_images} images in {len(self.batches)} batches")
+                error_msg = "\n".join(f"Batch {name}: {error}" for name, error in errors)
+                raise RuntimeError(f"Failed to process {len(errors)} batch(es):\n{error_msg}")
+
+            if not self._shutdown_event.is_set():
+                self.status = ProcessingStatus.COMPLETE
+                logger.info(f"Processing complete: {total_images} images in {len(self.batches)} batches")
+            else:
+                self.status = ProcessingStatus.ERROR
+                logger.info("Processing interrupted by user")
+
+        except asyncio.CancelledError:
+            self.status = ProcessingStatus.ERROR
+            logger.info("Processing cancelled")
+            raise
             
         except Exception as e:
             self.status = ProcessingStatus.ERROR
-            logger.error("Batch processing failed", exc_info=True)
-            raise  # Preserve original error context
+            raise
+            
         finally:
-            # Always try to clean up
-            try:
-                logger.info("Cleaning up model registry")
-                await ModelRegistry.cleanup()
-                self._initialized = False
-                logger.info("Model registry cleanup complete")
-            except Exception as e:
-                logger.error("Failed to clean up model registry", exc_info=True)
-                # Don't raise cleanup errors - they're less important than processing errors
+            if not self._shutdown_event.is_set():
+                try:
+                    await ModelRegistry.cleanup()
+                except Exception as e:
+                    logger.error("Failed to cleanup model registry", exc_info=True)
