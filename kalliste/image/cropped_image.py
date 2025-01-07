@@ -32,10 +32,22 @@ class CroppedImage:
         # Initialize tagger
         self.tagger_pipeline = tagger_pipeline or TaggerPipeline(config)
         
-    async def process(self):
-        """Process the cropped region."""
+    async def process(self) -> Optional[Dict]:
+        """
+        Process the cropped region.
+        Returns:
+            Optional[Dict]: Processing statistics including all assessments and rejection info
+        """
         try:
             self.output_dir.mkdir(parents=True, exist_ok=True)
+            
+            stats = {
+                'rejected_small': False,
+                'technical': None,
+                'aesthetic': None,
+                'overall': None,
+                'kalliste': None
+            }
             
             with Image.open(self.source_path) as img:
                 logger.info(f"Opened image {self.source_path}")
@@ -50,7 +62,8 @@ class CroppedImage:
                 logger.info("Validating size")
                 if not RegionDownsizer.is_valid_size(expanded_region, img):
                     logger.info(f"Region too small for SDXL, skipping: {expanded_region}")
-                    return None
+                    stats['rejected_small'] = True
+                    return stats
                 
                 logger.info("Cropping image")
                 cropped = img.crop((
@@ -79,17 +92,25 @@ class CroppedImage:
                 for tag_name, tag_values in self.region.kalliste_tags.items():
                     logger.info(f"  {tag_name}: {tag_values}")
                 
-                # Get NIMA quality assessment
-                nima_tag = self.region.kalliste_tags.get("KallisteNimaOverallAssessment")
-                quality_folder = "unrated"  # default folder
-                if nima_tag and isinstance(nima_tag, KallisteStringTag):
-                    quality_folder = nima_tag.value
+                # Get quality assessments for statistics
+                tech_tag = self.region.kalliste_tags.get("KallisteNimaTechnicalAssessment")
+                if tech_tag:
+                    stats['technical'] = tech_tag.value
+                    
+                aes_tag = self.region.kalliste_tags.get("KallisteNimaAestheticAssessment")
+                if aes_tag:
+                    stats['aesthetic'] = aes_tag.value
+                    
+                overall_tag = self.region.kalliste_tags.get("KallisteNimaOverallAssessment")
+                if overall_tag:
+                    stats['overall'] = overall_tag.value
                 
                 logger.info("Resizing to SDXL")
                 sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
 
                 # Determine Kalliste assessment
                 assessment = self._determine_kalliste_assessment(self.region)
+                stats['kalliste'] = assessment
                 
                 # Add the assessment to tags
                 self.region.add_tag(KallisteStringTag(
@@ -110,7 +131,7 @@ class CroppedImage:
                 self._write_metadata(output_path)
                 logger.info("Metadata written")
                 
-                return output_path
+                return stats
                 
         except Exception as e:
             logger.error(f"Failed to process cropped image: {e}")
@@ -136,14 +157,30 @@ class CroppedImage:
 
     def _determine_kalliste_assessment(self, region: Region) -> str:
         """
-        Determine if an image should be accepted or rejected based on various quality metrics.
+        Determine if an image should be accepted or rejected based on NIMA assessments.
+        Accepts if either:
+        1. NIMA overall assessment is "acceptable" OR
+        2. Technical quality is "high_quality" (overrides overall assessment)
+        
         Returns:
             str: "accept" or "reject"
         """
         try:
-            # For now, we'll base it on NIMA overall assessment
-            nima_overall = region.kalliste_tags.get("KallisteNimaOverallAssessment").value
-            return "accept" if nima_overall == "acceptable" else "reject"
+            # Get technical quality assessment
+            tech_assessment = region.kalliste_tags.get("KallisteNimaTechnicalAssessment")
+            if tech_assessment and tech_assessment.value == "high_quality":
+                logger.info("Accepting image due to high technical quality")
+                return "accept"
+            
+            # Otherwise check overall assessment
+            nima_overall = region.kalliste_tags.get("KallisteNimaOverallAssessment")
+            if nima_overall and nima_overall.value == "acceptable":
+                logger.info("Accepting image due to acceptable overall assessment")
+                return "accept"
+            
+            # If neither condition is met, reject
+            logger.info("Rejecting image: neither technically excellent nor acceptable overall")
+            return "reject"
                     
         except Exception as e:
             logger.warning(f"Error determining Kalliste assessment: {e}. Defaulting to reject.")

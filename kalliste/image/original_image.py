@@ -5,6 +5,8 @@ import asyncio
 import logging
 import subprocess
 import json
+from collections import defaultdict
+from datetime import datetime
 
 from ..types import ProcessingStatus
 from .cropped_image import CroppedImage
@@ -18,7 +20,6 @@ from ..tag.kalliste_tag import (
     KallisteBagTag,
     KallisteIntegerTag
 )
-import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,8 @@ class OriginalImage:
                 '-RegionAreaY',
                 '-RegionRotation',
                 '-WeightedFlatSubject',
-                '-XMP:Rating',           # Updated to use XMP namespace
-                '-XMP:Label',            # Updated to use XMP namespace
+                '-XMP:Rating',
+                '-XMP:Label',
                 '-j',
                 '-G',
                 str(self.source_path)
@@ -66,7 +67,7 @@ class OriginalImage:
                 'photoshoot_id': self.source_path.parent.name,
             }
             
-            # Add Rating if present (now using XMP namespace)
+            # Add Rating if present
             if 'XMP:Rating' in metadata:
                 rating = metadata['XMP:Rating']
                 if rating is not None:
@@ -80,7 +81,7 @@ class OriginalImage:
                     general_metadata['lr_label'] = label.lower()
                     logger.debug(f"Found LR label: {label}")
             
-            # Process LR subject tags from WeightedFlatSubject
+            # Process LR subject tags
             lr_tags = []
             weighted_subject = metadata.get('XMP:WeightedFlatSubject', [])
             if isinstance(weighted_subject, list):
@@ -91,8 +92,8 @@ class OriginalImage:
             # Process the LR face regions
             lr_faces = []
 
-            # Get all the region arrays - updated to use correct keys and handle float values
-            names = metadata.get('XMP:RegionName', [])  # Already comes as a list
+            # Get all the region arrays
+            names = metadata.get('XMP:RegionName', [])
             if not isinstance(names, list):
                 names = [n.strip() for n in str(names).split(',')]
                 
@@ -135,7 +136,7 @@ class OriginalImage:
                             'h': height
                         }
                     })
-                    logger.debug(f"Added face record for {names[i]}: center=({x_center},{y_center}), size=({width},{height})")
+                    logger.debug(f"Added face record for {names[i]}")
                 
             return general_metadata, lr_faces, lr_tags
                 
@@ -143,9 +144,26 @@ class OriginalImage:
             logger.error(f"Failed to extract Lightroom metadata: {e}", exc_info=True)
             return {}, [], []
 
-    async def process(self):
-        """Process the image."""
+    async def process(self) -> Dict[str, Dict]:
+        """
+        Process the image and return statistics.
+        Returns:
+            Dict: Statistics organized by region type, including:
+                - count of regions detected
+                - count of regions rejected for size
+                - assessment counts (technical, aesthetic, overall, kalliste)
+        """
         try:
+            # Initialize statistics structure
+            stats = defaultdict(lambda: {
+                'count': 0,
+                'rejected_small': 0,
+                'technical': defaultdict(int),
+                'aesthetic': defaultdict(int),
+                'overall': defaultdict(int),
+                'kalliste': defaultdict(int)
+            })
+
             # Get all Lightroom metadata in one call
             general_metadata, lr_faces, lr_tags = self._extract_lr_metadata()
             logger.debug(f"Extracted general metadata: {general_metadata}")
@@ -167,6 +185,10 @@ class OriginalImage:
             
             # Process each detected region
             for region in results.regions:
+                # Record region detection in statistics
+                region_type = region.region_type
+                stats[region_type]['count'] += 1
+
                 # Add basic metadata tags
                 if general_metadata.get('datetime_original'):
                     region.add_tag(KallisteDateTag(
@@ -202,7 +224,7 @@ class OriginalImage:
                     logger.debug(f"LR tags before creating bag tag: {lr_tags}")
                     region.add_tag(KallisteBagTag("KallisteLrTags", set(lr_tags)))
                 
-                # Add Rating if present - make sure to add it before creating CroppedImage
+                # Add Rating if present
                 if 'lr_rating' in general_metadata:
                     star_rating = general_metadata['lr_rating']
                     rating_str = 'unrated' if star_rating == 0 else f"{star_rating}_star"
@@ -212,7 +234,7 @@ class OriginalImage:
                     ))
                     logger.debug(f"Added LR rating tag: {rating_str}")
                 
-                # Add Label if present - make sure to add it before creating CroppedImage
+                # Add Label if present
                 if 'lr_label' in general_metadata:
                     region.add_tag(KallisteStringTag(
                         "KallisteLrLabel", 
@@ -220,14 +242,29 @@ class OriginalImage:
                     ))
                     logger.debug(f"Added LR label tag: {general_metadata['lr_label']}")
                 
-                # Create and process cropped image
+                # Process the region and get statistics
                 cropped = CroppedImage(
                     self.source_path,
                     self.output_dir,
                     region,
                     config=self.config
                 )
-                await cropped.process()
+                crop_stats = await cropped.process()
+                
+                # Update statistics from crop processing
+                if crop_stats:
+                    if crop_stats['rejected_small']:
+                        stats[region_type]['rejected_small'] += 1
+                    if crop_stats['technical']:
+                        stats[region_type]['technical'][crop_stats['technical']] += 1
+                    if crop_stats['aesthetic']:
+                        stats[region_type]['aesthetic'][crop_stats['aesthetic']] += 1
+                    if crop_stats['overall']:
+                        stats[region_type]['overall'][crop_stats['overall']] += 1
+                    if crop_stats['kalliste']:
+                        stats[region_type]['kalliste'][crop_stats['kalliste']] += 1
+            
+            return dict(stats)  # Convert defaultdict to regular dict
                     
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")

@@ -19,9 +19,11 @@ class RegionExpander:
         (1344, 768),   # 2:1 (landscape)
     ]
     
+    
     # Calculate ratios once
     SDXL_RATIOS = [(w/h, (w,h)) for w, h in SDXL_DIMENSIONS]
     
+
     # Single expansion factor based on region type
     EXPANSION_FACTORS = {
         'face': 0.4,    # 40% expansion in all directions
@@ -29,16 +31,19 @@ class RegionExpander:
         'default': 0.05 # 5% default expansion
     }
     
+
     @staticmethod
     def get_dimensions(region: Region) -> tuple[int, int]:
         """Calculate width and height of a region."""
         return (region.x2 - region.x1, region.y2 - region.y1)
         
+
     @staticmethod
     def get_center_point(region: Region) -> tuple[float, float]:
         """Calculate the center point of a region."""
         return ((region.x1 + region.x2) / 2, (region.y1 + region.y2) / 2)
     
+
     @classmethod
     def expand_region(cls, region: Region, 
                      expand_factor: float = 0.0,
@@ -74,6 +79,7 @@ class RegionExpander:
             confidence=region.confidence
         )
 
+
     @classmethod
     def expand_region_to_sdxl_ratios(cls, region: Region, 
                                 img_width: int, img_height: int) -> Region:
@@ -98,87 +104,64 @@ class RegionExpander:
         center_x = (expanded.x1 + expanded.x2) / 2
         center_y = (expanded.y1 + expanded.y2) / 2
 
-        # Find best fitting SDXL ratio
-        best_fit = None
-        min_boundary_overflow = float('inf')
+        # Find best matching SDXL ratio
+        best_dims = None
+        min_ratio_diff = float('inf')
         
-        for ratio, (target_w, target_h) in cls.SDXL_RATIOS:
-            # Try both fitting strategies: constrain by width or by height
-            options = []
+        for dims in cls.SDXL_DIMENSIONS:
+            target_ratio = dims[0] / dims[1]
+            ratio_diff = abs(current_ratio - target_ratio)
             
-            # Option 1: Constrain by current width
-            trial_h = width / ratio
-            options.append((width, trial_h))
+            # Calculate if these dimensions would fit within bounds
+            if current_ratio >= target_ratio:
+                # Width constrained
+                trial_width = width
+                trial_height = width / target_ratio
+            else:
+                # Height constrained
+                trial_height = height
+                trial_width = height * target_ratio
+                
+            # Check if this would fit in image bounds with some wiggle room
+            half_w = trial_width / 2
+            half_h = trial_height / 2
             
-            # Option 2: Constrain by current height
-            trial_w = height * ratio
-            options.append((trial_w, height))
+            # Allow slight adjustments to center point to fit
+            potential_center_x = center_x
+            potential_center_y = center_y
             
-            # Evaluate each option
-            for new_width, new_height in options:
-                # Calculate boundaries
-                half_w = new_width / 2
-                half_h = new_height / 2
+            if center_x - half_w < 0:
+                potential_center_x = half_w
+            elif center_x + half_w > img_width:
+                potential_center_x = img_width - half_w
                 
-                # Calculate how much we'd overflow boundaries
-                left_overflow = max(0, half_w - center_x)
-                right_overflow = max(0, (center_x + half_w) - img_width)
-                top_overflow = max(0, half_h - center_y)
-                bottom_overflow = max(0, (center_y + half_h) - img_height)
+            if center_y - half_h < 0:
+                potential_center_y = half_h
+            elif center_y + half_h > img_height:
+                potential_center_y = img_height - half_h
                 
-                total_overflow = left_overflow + right_overflow + top_overflow + bottom_overflow
-                
-                if total_overflow < min_boundary_overflow:
-                    min_boundary_overflow = total_overflow
-                    best_fit = (new_width, new_height, ratio)
+            # Calculate how much we'd need to move the center
+            center_shift = abs(potential_center_x - center_x) + abs(potential_center_y - center_y)
+            
+            # If this ratio requires less adjustment and is within bounds, consider it
+            if center_shift < width/4:  # Allow up to 25% shift
+                if ratio_diff < min_ratio_diff:
+                    min_ratio_diff = ratio_diff
+                    best_dims = (trial_width, trial_height, potential_center_x, potential_center_y)
         
-        if not best_fit:
+        if not best_dims:
             return expanded
             
-        new_width, new_height, chosen_ratio = best_fit
+        new_width, new_height, center_x, center_y = best_dims
         
-        # Now adjust the center point if needed to avoid boundaries
-        # This ensures we never go out of bounds, even if it means
-        # shifting the center of the crop
+        # Calculate final coordinates
         half_w = new_width / 2
         half_h = new_height / 2
         
-        # Adjust center_x to avoid boundary overflow
-        if center_x - half_w < 0:
-            center_x = half_w
-        elif center_x + half_w > img_width:
-            center_x = img_width - half_w
-            
-        # Adjust center_y to avoid boundary overflow
-        if center_y - half_h < 0:
-            center_y = half_h
-        elif center_y + half_h > img_height:
-            center_y = img_height - half_h
-        
-        # Calculate final coordinates
         x1 = max(0, int(center_x - half_w))
         x2 = min(img_width, int(center_x + half_w))
         y1 = max(0, int(center_y - half_h))
         y2 = min(img_height, int(center_y + half_h))
-        
-        # One final adjustment to ensure we maintain exact ratio
-        # even after boundary constraints
-        final_width = x2 - x1
-        final_height = y2 - y1
-        final_ratio = final_width / final_height
-        
-        if final_ratio > chosen_ratio:
-            # Too wide, adjust width
-            target_width = int(final_height * chosen_ratio)
-            x_adjust = (final_width - target_width) // 2
-            x1 += x_adjust
-            x2 -= x_adjust
-        elif final_ratio < chosen_ratio:
-            # Too tall, adjust height
-            target_height = int(final_width / chosen_ratio)
-            y_adjust = (final_height - target_height) // 2
-            y1 += y_adjust
-            y2 -= y_adjust
         
         return Region(
             x1=x1,

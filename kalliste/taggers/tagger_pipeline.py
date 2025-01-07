@@ -209,14 +209,7 @@ class TaggerPipeline:
                     nima_results['overall_assessment'][0].label
                 ))
                 
-            # Set final Kalliste assessment based on overall
-            if 'overall_assessment' in nima_results:
-                final_assessment = "accept" if nima_results['overall_assessment'][0].label == "acceptable" else "reject"
-                region.add_tag(KallisteStringTag(
-                    "KallisteAssessment",
-                    final_assessment
-                ))
-                
+
         except Exception as e:
             logger.error(f"Failed to process NIMA results: {e}")
             raise RuntimeError(f"NIMA tag processing failed: {e}")
