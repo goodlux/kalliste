@@ -7,6 +7,7 @@ import subprocess
 import json
 from collections import defaultdict
 from datetime import datetime
+import re
 
 from ..types import ProcessingStatus
 from .cropped_image import CroppedImage
@@ -144,6 +145,67 @@ class OriginalImage:
             logger.error(f"Failed to extract Lightroom metadata: {e}", exc_info=True)
             return {}, [], []
 
+    def _extract_path_metadata(self, region: Region):
+        """Extract and set metadata tags directly from the path."""
+        try:
+            folder_name = self.source_path.parent.name
+            parts = folder_name.split('_')
+            
+            # Try to parse date from first part
+            if parts and re.match(r'^\d{8}$', parts[0]):
+                try:
+                    date = datetime.strptime(parts[0], '%Y%m%d')
+                    region.add_tag(KallisteDateTag("KallistePhotoshootDate", date))
+                    # After date, first part before any @ or # is the shoot name
+                    if len(parts) > 1:
+                        shoot_name = next((part for part in parts[1:] 
+                                        if not part.startswith('@') and 
+                                        not part.startswith('#')), None)
+                        if shoot_name:
+                            region.add_tag(KallisteStringTag(
+                                "KallistePhotoshootName",
+                                shoot_name
+                            ))
+                except ValueError:
+                    pass
+
+            # Process each part
+            for part in parts:
+                if not part:
+                    continue
+                    
+                # Person name starts with @
+                if part.startswith('@'):
+                    region.add_tag(KallisteStringTag(
+                        "KallistePersonName",
+                        part[1:]  # Remove @ symbol
+                    ))
+                    
+                # Source type starts with #    
+                elif part.startswith('#'):
+                    region.add_tag(KallisteStringTag(
+                        "KallisteSourceType",
+                        part[1:]  # Remove # symbol
+                    ))
+                
+                # Everything else goes to additional tags
+                elif not re.match(r'^\d{8}$', part):  # Skip the date part
+                    # We'll collect these and add as a bag tag at the end
+                    if not hasattr(self, '_additional_tags'):
+                        self._additional_tags = set()
+                    self._additional_tags.add(part)
+                    
+            # Add collected tags as a bag tag
+            if hasattr(self, '_additional_tags'):
+                region.add_tag(KallisteBagTag(
+                    "KallisteTags", 
+                    self._additional_tags
+                ))
+                delattr(self, '_additional_tags')
+                
+        except Exception as e:
+            logger.error(f"Failed to extract path metadata: {e}", exc_info=True)
+
     async def process(self) -> Dict[str, Dict]:
         """
         Process the image and return statistics.
@@ -166,7 +228,7 @@ class OriginalImage:
 
             # Get all Lightroom metadata in one call
             general_metadata, lr_faces, lr_tags = self._extract_lr_metadata()
-            logger.debug(f"Extracted general metadata: {general_metadata}")
+            logger.debug(f"Extracted LR metadata: {general_metadata}")
             logger.debug(f"Extracted faces: {lr_faces}")
             logger.debug(f"Extracted tags: {lr_tags}")
 
@@ -189,10 +251,13 @@ class OriginalImage:
                 region_type = region.region_type
                 stats[region_type]['count'] += 1
 
-                # Add basic metadata tags
+                # Extract and set path-based metadata tags directly
+                self._extract_path_metadata(region)
+
+                # Add LR-based metadata tags
                 if general_metadata.get('datetime_original'):
                     region.add_tag(KallisteDateTag(
-                        "KallistePhotoshootDate",
+                        "KallisteDateTimeOriginal",
                         datetime.strptime(general_metadata['datetime_original'], '%Y:%m:%d %H:%M:%S')
                     ))
                 
@@ -202,10 +267,9 @@ class OriginalImage:
                         int(general_metadata['rating'])
                     ))
                 
-                region.add_tag(KallisteStringTag(
-                    "KallistePhotoshootId", 
-                    general_metadata['photoshoot_id']
-                ))
+                # Update in process() method, after extracting path metadata:
+                # Remove this line since we'll create KallistePhotoshootId directly from the folder name parts
+                # region.add_tag(KallisteStringTag("KallistePhotoshootId", general_metadata['photoshoot_id']))
                 
                 region.add_tag(KallisteStringTag(
                     "KallisteOriginalFilePath", 

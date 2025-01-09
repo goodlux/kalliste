@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class NIMATagger(AbstractTagger):
     # Class constants for thresholds
-    DEFAULT_TECHNICAL_LOW_THRESHOLD = 0.48
+    DEFAULT_TECHNICAL_LOW_THRESHOLD = 0.52
     DEFAULT_TECHNICAL_HIGH_THRESHOLD = 0.56
 
     DEFAULT_AESTHETIC_LOW_THRESHOLD = 0.43

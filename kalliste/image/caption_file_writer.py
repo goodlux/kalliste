@@ -12,6 +12,8 @@ class CaptionFileWriter:
     # Tags we're looking for
     REQUIRED_TAGS = [
         "KallistePersonName",
+        "KallistePhotoshootName",
+        "KallisteSourceType",
         "KallisteCaption",
         "KallisteOrientationTag",
         "KallisteWd14Tags"
@@ -54,8 +56,9 @@ class CaptionFileWriter:
     def _format_caption(self, kalliste_tags: Dict[str, Any]) -> str:
         """
         Format caption text from kalliste tags.
-        Format: ballerinaLux, {PersonName}, {Caption}, {OrientationTag}, 
-                [aesthetic], [high_quality], [label_{LrLabel}], [LrRating], {LrTags}, {Wd14Tags}
+        Format: ballerinaLux, {PersonName}, {PhotoshootName}, {Caption}, {OrientationTag}, 
+                [aesthetic], [high_quality], [label_{LrLabel}], [LrRating], {LrTags}, 
+                [source_{SourceType}], {AdditionalTags}, {Wd14Tags}
         """
         # Start with mandatory prefix
         caption_parts = ["ballerinaLux"]
@@ -67,6 +70,11 @@ class CaptionFileWriter:
             caption_parts.append(name)
         else:
             logger.warning("No KallistePersonName tag found")
+        
+        # Add photoshoot name if it exists
+        if "KallistePhotoshootName" in kalliste_tags:
+            shoot_name = kalliste_tags["KallistePhotoshootName"].value
+            caption_parts.append(shoot_name)
         
         # Add caption if it exists
         if "KallisteCaption" in kalliste_tags:
@@ -100,6 +108,14 @@ class CaptionFileWriter:
                 caption_parts.append(label_tag)
                 logger.debug(f"Added Lightroom label tag: {label_tag}")
 
+        # Add label_{LrLabel} if it exists
+        if "KallisteSourceType" in kalliste_tags:
+            lr_label = kalliste_tags["KallisteSourceType"].value
+            if lr_label:
+                label_tag = f"label_{lr_label.lower()}"
+                caption_parts.append(label_tag)
+                logger.debug(f"Added Lightroom label tag: {label_tag}")
+
         # Add LrRating if it exists
         if "KallisteLrRating" in kalliste_tags:
             lr_rating = kalliste_tags["KallisteLrRating"].value
@@ -115,6 +131,20 @@ class CaptionFileWriter:
                 caption_parts.append(lr_tags_str)
                 logger.debug(f"Added LR tags: {lr_tags_str}")
         
+        # Add source type if it exists
+        if "KallisteSourceType" in kalliste_tags:
+            source_type = kalliste_tags["KallisteSourceType"].value
+            caption_parts.append(f"source_{source_type}")
+            logger.debug(f"Added source type: {source_type}")
+        
+        # Add additional tags if they exist
+        if "KallisteTags" in kalliste_tags:
+            tags = kalliste_tags["KallisteTags"]
+            if isinstance(tags, KallisteBagTag):
+                tags_str = ",".join(tags.value)
+                caption_parts.append(tags_str)
+                logger.debug(f"Added additional tags: {tags_str}")
+        
         # Add WD14 tags if they exist
         if "KallisteWd14Tags" in kalliste_tags:
             wd14_tags = kalliste_tags["KallisteWd14Tags"]
@@ -126,7 +156,7 @@ class CaptionFileWriter:
         result = ", ".join(filter(None, caption_parts))
         logger.debug(f"Generated caption: {result}")
         return result
-            
+
     def _write_to_file(self, caption_text: str) -> bool:
         """Write formatted caption to file."""
         try:

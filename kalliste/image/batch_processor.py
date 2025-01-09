@@ -7,6 +7,7 @@ import asyncio
 import signal
 import logging
 import yaml
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -28,30 +29,58 @@ class BatchProcessor:
         self.batches: List[Batch] = []
         self.status = ProcessingStatus.PENDING
         self._shutdown_event = asyncio.Event()
+        self._original_sigint_handler = None
+        self._tasks = set()
         self._setup_signal_handlers()
 
     def _setup_signal_handlers(self):
         """Set up handlers for graceful shutdown."""
+        # Store original SIGINT handler
+        self._original_sigint_handler = signal.getsignal(signal.SIGINT)
+        
+        # Set up synchronous signal handler that works before event loop starts
+        def sync_signal_handler(signum, frame):
+            logger.info("Received interrupt signal, initiating immediate shutdown...")
+            self._shutdown_event.set()
+            sys.exit(1)
+            
+        signal.signal(signal.SIGINT, sync_signal_handler)
+        
+        # Will set up async handlers when event loop is running
         try:
             loop = asyncio.get_running_loop()
+            self._setup_async_handlers(loop)
         except RuntimeError:
-            # No running loop yet, will set up in process_all
-            return
-            
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self._handle_shutdown(s)))
+            pass  # No running loop yet
 
-    async def _handle_shutdown(self, sig):
+    def _setup_async_handlers(self, loop):
+        """Set up async signal handlers once event loop is running."""
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: asyncio.create_task(
+                    self._handle_shutdown(s, loop)
+                )
+            )
+
+    async def _handle_shutdown(self, sig, loop):
         """Handle shutdown signal gracefully."""
         logger.info(f"Received signal {sig.name}, initiating shutdown...")
         self._shutdown_event.set()
         
-        # Cancel any running tasks
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        for task in tasks:
-            task.cancel()
-            
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Cancel all tracked tasks
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+                
+        # Wait briefly for tasks to cancel
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*self._tasks, return_exceptions=True),
+                timeout=2.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Some tasks did not cancel cleanly")
         
         # Cleanup
         try:
@@ -60,7 +89,14 @@ class BatchProcessor:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
             
+        # Restore original signal handler
+        if self._original_sigint_handler:
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+            
         logger.info("Shutdown complete")
+        
+        # Stop the event loop
+        loop.stop()
 
     def _load_config(self) -> Dict:
         """Load default configuration file."""
@@ -76,7 +112,12 @@ class BatchProcessor:
         logger.info(f"Setting up processor - Input: {self.input_path}, Output: {self.output_path}")
         
         # Initialize model registry
-        await ModelRegistry.initialize()
+        setup_task = asyncio.create_task(ModelRegistry.initialize())
+        self._tasks.add(setup_task)
+        try:
+            await setup_task
+        finally:
+            self._tasks.remove(setup_task)
         
         # Find and create batches
         self.batches = []
@@ -108,8 +149,12 @@ class BatchProcessor:
                 logger.warning("No batches found to process")
                 return
 
-        # Ensure signal handlers are set up in this loop
-        self._setup_signal_handlers()
+        # Ensure async signal handlers are set up in this loop
+        try:
+            loop = asyncio.get_running_loop()
+            self._setup_async_handlers(loop)
+        except RuntimeError:
+            pass
 
         logger.info("Starting batch processing")
         self.status = ProcessingStatus.PROCESSING
@@ -127,9 +172,18 @@ class BatchProcessor:
                     break
                     
                 try:
-                    await batch.process()
-                    processed_images += len(batch.images)
-                    logger.info(f"Progress: {processed_images}/{total_images} images")
+                    # Create and track the batch processing task
+                    process_task = asyncio.create_task(batch.process())
+                    self._tasks.add(process_task)
+                    try:
+                        await process_task
+                        processed_images += len(batch.images)
+                        logger.info(f"Progress: {processed_images}/{total_images} images")
+                    finally:
+                        self._tasks.remove(process_task)
+                except asyncio.CancelledError:
+                    logger.info(f"Processing of batch {batch.input_path.name} was cancelled")
+                    raise
                 except Exception as e:
                     errors.append((batch.input_path.name, str(e)))
                     logger.error(f"Failed to process {batch.input_path.name}", exc_info=True)
@@ -158,6 +212,11 @@ class BatchProcessor:
         finally:
             if not self._shutdown_event.is_set():
                 try:
-                    await ModelRegistry.cleanup()
+                    cleanup_task = asyncio.create_task(ModelRegistry.cleanup())
+                    self._tasks.add(cleanup_task)
+                    try:
+                        await cleanup_task
+                    finally:
+                        self._tasks.remove(cleanup_task)
                 except Exception as e:
                     logger.error("Failed to cleanup model registry", exc_info=True)
