@@ -1,19 +1,21 @@
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 import yaml
+import asyncio
 from copy import deepcopy
 from .original_image import OriginalImage
 
 logger = logging.getLogger(__name__)
 
 class Batch:
-    def __init__(self, input_path: Path, output_path: Path, default_config: Dict):
+    def __init__(self, input_path: Path, output_path: Path, default_config: Dict, shutdown_event: Optional[asyncio.Event] = None):
         self.input_path = input_path
         self.output_path = output_path
         self.default_config = default_config
         self.config = self._load_batch_config()
         self.images: List[OriginalImage] = []
+        self.shutdown_event = shutdown_event
 
     def _load_batch_config(self) -> Dict:
         """Load batch-specific config, falling back to defaults."""
@@ -75,10 +77,9 @@ class Batch:
             raise
 
     async def process(self):
-        """Process all images in the batch."""
+        """Process all images in the batch concurrently with limits."""
         logger.info(f"Processing batch: {self.input_path.name}")
         
-        # Scan for images if not already done
         if not self.images:
             self.scan_for_images()
             
@@ -86,13 +87,49 @@ class Batch:
             logger.warning("No images to process")
             return
             
-        # Process each image
-        for image in self.images:
-            try:
-                logger.info(f"Processing image: {image.source_path.name}")
-                await image.process()
-            except Exception as e:
-                logger.error(f"Failed to process image {image.source_path}", exc_info=True)
-                raise  # Let the batch processor handle the error
+        # Get concurrency limit from config, default to 4
+        max_concurrent = self.config.get('processing', {}).get('max_concurrent_images', 4)
+        
+        # Process images concurrently with semaphore
+        sem = asyncio.Semaphore(max_concurrent)
+        
+        async def process_with_semaphore(image):
+            if self.shutdown_event and self.shutdown_event.is_set():
+                logger.info("Shutdown requested, skipping image processing")
+                return
                 
-        logger.info(f"Completed processing batch: {self.input_path.name}")
+            async with sem:
+                try:
+                    logger.info(f"Processing image: {image.source_path.name}")
+                    await image.process()
+                except Exception as e:
+                    logger.error(f"Failed to process image {image.source_path}", exc_info=True)
+                    raise
+        
+        # Create tasks for all images
+        tasks = []
+        for image in self.images:
+            if self.shutdown_event and self.shutdown_event.is_set():
+                break
+            # Create a task from the coroutine
+            task = asyncio.create_task(process_with_semaphore(image))
+            tasks.append(task)
+        
+        if not tasks:
+            return
+            
+        # Wait for tasks with cancellation support
+        try:
+            # Use gather to handle all tasks together
+            await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            logger.error(f"Task failed in batch {self.input_path.name}: {e}")
+            raise
+        finally:
+            # Cancel any remaining tasks if shutdown requested
+            if self.shutdown_event and self.shutdown_event.is_set():
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                # Wait briefly for cancellation
+                await asyncio.wait(tasks, timeout=2.0)

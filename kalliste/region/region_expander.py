@@ -6,23 +6,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RegionExpander:
-    """Expands regions to match training model ratios."""
+    """Expands regions to match Stability AI SDXL training dimensions."""
     
-    # SDXL dimensions with common aspect ratios
+    # Official Stability AI SDXL dimensions
     SDXL_DIMENSIONS = [
-        (1024, 1024),  # 1:1
-        (896, 1152),   # 3:4 (portrait)
-        (1152, 896),   # 4:3 (landscape)
-        (832, 1216),   # 2:3 (portrait)
-        (1216, 832),   # 3:2 (landscape)
-        (768, 1344),   # 1:2 (portrait)
-        (1344, 768),   # 2:1 (landscape)
+        (1024, 1024),  # square
+        (1152, 896),   # landscape
+        (896, 1152),   # portrait
+        (1216, 832),
+        (832, 1216),     # wide landscape
+        (1344, 768),   # wider landscape 
+        (768, 1344),   # tall portrait
     ]
-    
-    
-    # Calculate ratios once
-    SDXL_RATIOS = [(w/h, (w,h)) for w, h in SDXL_DIMENSIONS]
-    
 
     # Single expansion factor based on region type
     EXPANSION_FACTORS = {
@@ -30,19 +25,16 @@ class RegionExpander:
         'person': 0.15, # 15% expansion in all directions
         'default': 0.05 # 5% default expansion
     }
-    
 
     @staticmethod
     def get_dimensions(region: Region) -> tuple[int, int]:
         """Calculate width and height of a region."""
         return (region.x2 - region.x1, region.y2 - region.y1)
-        
 
     @staticmethod
     def get_center_point(region: Region) -> tuple[float, float]:
         """Calculate the center point of a region."""
         return ((region.x1 + region.x2) / 2, (region.y1 + region.y2) / 2)
-    
 
     @classmethod
     def expand_region(cls, region: Region, 
@@ -79,18 +71,17 @@ class RegionExpander:
             confidence=region.confidence
         )
 
-
     @classmethod
-    def expand_region_to_sdxl_ratios(cls, region: Region, 
-                                img_width: int, img_height: int) -> Region:
-        """Expand region while maintaining proportions and staying within bounds."""
-        # First apply type-specific padding equally
+    def expand_region_to_sdxl_ratios(cls, region: Region, img_width: int, img_height: int) -> Region:
+        """Expand region to match SDXL dimensions while preserving proportions."""
+        
+        # Initial expansion based on content type
         expand_factor = cls.EXPANSION_FACTORS.get(
             region.region_type.lower(), 
             cls.EXPANSION_FACTORS['default']
         )
         
-        # Initial expansion
+        # Apply initial expansion
         expanded = cls.expand_region(
             region,
             expand_factor=expand_factor,
@@ -104,32 +95,31 @@ class RegionExpander:
         center_x = (expanded.x1 + expanded.x2) / 2
         center_y = (expanded.y1 + expanded.y2) / 2
 
-        # Find best matching SDXL ratio
+        # Find best matching SDXL dimensions
         best_dims = None
         min_ratio_diff = float('inf')
+        max_center_shift = width/8  # Allow up to 1/8 width shift of center point
         
-        for dims in cls.SDXL_DIMENSIONS:
-            target_ratio = dims[0] / dims[1]
-            ratio_diff = abs(current_ratio - target_ratio)
+        for target_width, target_height in cls.SDXL_DIMENSIONS:
+            target_ratio = target_width / target_height
             
-            # Calculate if these dimensions would fit within bounds
+            # Calculate dimensions that would match this ratio
             if current_ratio >= target_ratio:
-                # Width constrained
                 trial_width = width
-                trial_height = width / target_ratio
+                trial_height = int(width / target_ratio)
             else:
-                # Height constrained
                 trial_height = height
-                trial_width = height * target_ratio
-                
-            # Check if this would fit in image bounds with some wiggle room
+                trial_width = int(height * target_ratio)
+            
+            # Check if this would fit within bounds
             half_w = trial_width / 2
             half_h = trial_height / 2
             
-            # Allow slight adjustments to center point to fit
+            # Try to maintain center point
             potential_center_x = center_x
             potential_center_y = center_y
             
+            # Adjust center point if needed to stay in bounds
             if center_x - half_w < 0:
                 potential_center_x = half_w
             elif center_x + half_w > img_width:
@@ -139,20 +129,54 @@ class RegionExpander:
                 potential_center_y = half_h
             elif center_y + half_h > img_height:
                 potential_center_y = img_height - half_h
-                
-            # Calculate how much we'd need to move the center
+            
+            # Calculate how much we need to move the center
             center_shift = abs(potential_center_x - center_x) + abs(potential_center_y - center_y)
             
-            # If this ratio requires less adjustment and is within bounds, consider it
-            if center_shift < width/4:  # Allow up to 25% shift
+            # If we don't need to shift the center too much, consider this ratio
+            if center_shift <= max_center_shift:
+                ratio_diff = abs(current_ratio - target_ratio)
                 if ratio_diff < min_ratio_diff:
                     min_ratio_diff = ratio_diff
                     best_dims = (trial_width, trial_height, potential_center_x, potential_center_y)
         
+        # If no good match found with center shift constraint, try again allowing more shift
         if not best_dims:
-            return expanded
+            logger.debug("No match found with tight center constraint, allowing more shift")
+            max_center_shift = width/4  # Allow up to 1/4 width shift
             
-        new_width, new_height, center_x, center_y = best_dims
+            for target_width, target_height in cls.SDXL_DIMENSIONS:
+                target_ratio = target_width / target_height
+                
+                if current_ratio >= target_ratio:
+                    trial_width = width
+                    trial_height = int(width / target_ratio)
+                else:
+                    trial_height = height
+                    trial_width = int(height * target_ratio)
+                
+                half_w = trial_width / 2
+                half_h = trial_height / 2
+                
+                potential_center_x = max(half_w, min(img_width - half_w, center_x))
+                potential_center_y = max(half_h, min(img_height - half_h, center_y))
+                
+                # Calculate center shift
+                center_shift = abs(potential_center_x - center_x) + abs(potential_center_y - center_y)
+                
+                if center_shift <= max_center_shift:
+                    ratio_diff = abs(current_ratio - target_ratio)
+                    if ratio_diff < min_ratio_diff:
+                        min_ratio_diff = ratio_diff
+                        best_dims = (trial_width, trial_height, potential_center_x, potential_center_y)
+        
+        # Use best match found
+        if best_dims:
+            new_width, new_height, center_x, center_y = best_dims
+        else:
+            # Fallback to basic expansion if no good match found
+            logger.warning("No suitable SDXL ratio found, using basic expansion")
+            return expanded
         
         # Calculate final coordinates
         half_w = new_width / 2

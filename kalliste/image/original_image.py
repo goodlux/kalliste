@@ -149,7 +149,7 @@ class OriginalImage:
         """Extract and set metadata tags directly from the path."""
         try:
             folder_name = self.source_path.parent.name
-            parts = folder_name.split('_')
+            parts = folder_name.split('-')
             
             # Try to parse date from first part
             if parts and re.match(r'^\d{8}$', parts[0]):

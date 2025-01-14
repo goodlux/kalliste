@@ -62,6 +62,7 @@ animals:
   - caption
   - wd14
 
+save_rejects: true
 # Note: This is an example configuration showing all possible settings.
 # The actual default_detection_config.yaml uses a simpler subset of these settings.
 # Each batch can override any of these settings in its detection_config.yaml 

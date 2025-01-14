@@ -1,7 +1,6 @@
 # Target platform configuration
 target: 
   platform: "SDXL"
-  min_size: [384, 384]
 
 # Detector configuration
 detector:
@@ -46,3 +45,9 @@ face:
   - wd14
   - caption 
   - nima
+
+
+processing:
+  max_concurrent_batches: 1  # Number of batches to process simultaneously
+  max_concurrent_images: 1   # Number of images to process simultaneously within each batch
+  save_rejects: false     # Whether to save rejected images
