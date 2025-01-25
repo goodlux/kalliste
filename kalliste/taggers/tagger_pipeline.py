@@ -84,7 +84,6 @@ class TaggerPipeline:
             logger.error(f"Failed to process orientation results: {e}")
             raise RuntimeError(f"Orientation tag processing failed: {e}")
 
-
     def _process_wd14_results(self, region: Region, wd14_results: List[TagResult]) -> None:
         """Process WD14 results and add them to region's kalliste_tags."""
         try:
@@ -119,7 +118,6 @@ class TaggerPipeline:
                     category_tag_name = f"KallisteWd14{category}"
                     region.add_tag(KallisteBagTag(category_tag_name, tags))
 
-                
                 # Add combined tags collection (for compatibility)
                 region.add_tag(KallisteBagTag("KallisteWd14Tags", all_tags))
                 
@@ -178,13 +176,13 @@ class TaggerPipeline:
             # Add assessments
             if 'technical_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaAssessmentTechnical",
+                    "KallisteNimaTechnicalAssessment",
                     nima_results['technical_assessment'][0].label
                 ))
                 
             if 'aesthetic_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaAssessmentAesthetic",
+                    "KallisteNimaAestheticAssessment",
                     nima_results['aesthetic_assessment'][0].label
                 ))
                 
@@ -208,12 +206,10 @@ class TaggerPipeline:
                     "KallisteNimaOverallAssessment",
                     nima_results['overall_assessment'][0].label
                 ))
-                
 
         except Exception as e:
             logger.error(f"Failed to process NIMA results: {e}")
             raise RuntimeError(f"NIMA tag processing failed: {e}")
-
 
     def _process_tagger_results(self, region: Region, tagger_name: str, results: Dict[str, List[TagResult]]) -> None:
         """Process results from a specific tagger and add them to region's kalliste_tags."""
@@ -235,7 +231,6 @@ class TaggerPipeline:
             logger.error(f"Failed to process {tagger_name} results: {e}")
             raise RuntimeError(f"Tag processing failed for {tagger_name}: {e}")
         
-    
     async def tag_pillow_image(self, image: Image.Image, region_type: str, region: Optional[Region] = None) -> Dict[str, List[TagResult]]:
         """Run configured taggers for this region type using a PIL Image."""
         # Get list of taggers to run for this region type
@@ -257,7 +252,7 @@ class TaggerPipeline:
                     
                     # Log individual tagger results
                     for category, tags in tagger_results.items():
-                        if tags:  # Only log if we have tags
+                        if tags:
                             tag_details = [
                                 f"{tag.label}({tag.confidence:.2f})" 
                                 for tag in tags
@@ -275,7 +270,7 @@ class TaggerPipeline:
             # Log final combined results
             combined_results = []
             for category, tags in results.items():
-                if tags:  # Only include non-empty results
+                if tags:
                     if category == 'caption':
                         # Special formatting for captions
                         formatted = f"{category}: \"{tags[0].label}\""

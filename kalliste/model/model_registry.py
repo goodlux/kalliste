@@ -239,8 +239,8 @@ class ModelRegistry:
         }
 
         for model_name, config in MODELS["classification"].items():
-            # Skip WD14 for now as it needs special handling
-            if model_name == "wd14" or model_name not in model_configs:
+            # Skip models that need special handling
+            if model_name in ["wd14", "nima"] or model_name not in model_configs:
                 continue
 
             try:

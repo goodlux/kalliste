@@ -6,6 +6,9 @@ YOLO_CACHE_DIR = CACHE_DIR / "ultralytics"
 HF_CACHE_DIR = CACHE_DIR / "huggingface" / "hub"
 NIMA_CACHE_DIR = CACHE_DIR / "kalliste" / "nima"
 
+# ChromaDB configuration
+CHROMADB_DIR = Path("/Volumes/m01/kalliste_data/chromadb")
+
 # Core model configurations - all in default cache locations
 MODELS = {
     # Currently we are only using YOLO models for detection
@@ -48,7 +51,7 @@ MODELS = {
                 "technical": "technical_0.11.hdf5",
                 "aesthetic": "aesthetic_0.07.hdf5"
             }
-        }
+        },
     }
 }
 
@@ -57,12 +60,3 @@ MODELS = {
 BLIP2_MODEL_ID = MODELS["classification"]["blip2"]
 ORIENTATION_MODEL_ID = MODELS["classification"]["orientation"]
 WD14_MODEL_ID = MODELS["classification"]["wd14"]
-
-# # Detection configurations
-# DETECTION_CONFIG = {
-#     # Default confidence threshold for detectors
-#     "confidence_threshold": 0.5,
-    
-#     # Default detection types to look for (if not specified)
-#     "default_detection_types": ["person", "face"]
-# }

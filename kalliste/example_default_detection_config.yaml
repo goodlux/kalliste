@@ -1,8 +1,6 @@
 # Target platform configuration
 target: 
   platform: "SDXL"  # Options: SDXL, SD1.5, Custom
-  min_size: [384, 384]  # Minimum size for detection regions
-  max_size: [1024, 1024]  # Maximum size for detection regions
 
 # Detector configuration
 detector:
@@ -39,6 +37,13 @@ tagger:
     language: "en"             # Options: en, ja, zh, ko, fr, de, es
     style: "detailed"          # Options: detailed, simple, artistic
 
+  nima:
+    # We could add config overrides here, but the defaults in NIMA_tagger.py will work fine
+    # technical_threshold: 0.5
+    # aesthetic_threshold: 5.0
+    # use_technical: true
+    # use_aesthetic: true
+
   orientation:
     confidence: 0.8            # Range: 0.0-1.0
     angles: [0, 90, 180, 270]  # Allowed rotation angles
@@ -61,6 +66,7 @@ face:
 animals:
   - caption
   - wd14
+
 
 save_rejects: true
 # Note: This is an example configuration showing all possible settings.

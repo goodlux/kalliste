@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Set
 import asyncio
 import logging
-import subprocess
 import json
+from .exiftool import run_exiftool
 from collections import defaultdict
 from datetime import datetime
 import re
@@ -32,7 +32,7 @@ class OriginalImage:
         self.output_dir = output_dir
         self.config = config
 
-    def _extract_lr_metadata(self) -> tuple[Dict[str, any], List[Dict[str, any]], List[str]]:
+    async def _extract_lr_metadata(self) -> tuple[Dict[str, any], List[Dict[str, any]], List[str]]:
         """Extract all Lightroom metadata using a single exiftool call."""
         try:
             cmd = [
@@ -54,13 +54,12 @@ class OriginalImage:
                 str(self.source_path)
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                logger.error(f"Exiftool failed: {result.stderr}")
+            success, stdout, stderr = await run_exiftool(cmd)
+            if not success:
+                logger.error(f"Exiftool failed: {stderr}")
                 return {}, [], []
                 
-            metadata = json.loads(result.stdout)[0]
+            metadata = json.loads(stdout)[0]
             logger.debug(f"Raw exiftool output: {json.dumps(metadata, indent=2)}")
         
             # Extract general metadata
@@ -227,7 +226,7 @@ class OriginalImage:
             })
 
             # Get all Lightroom metadata in one call
-            general_metadata, lr_faces, lr_tags = self._extract_lr_metadata()
+            general_metadata, lr_faces, lr_tags = await self._extract_lr_metadata()
             logger.debug(f"Extracted LR metadata: {general_metadata}")
             logger.debug(f"Extracted faces: {lr_faces}")
             logger.debug(f"Extracted tags: {lr_tags}")

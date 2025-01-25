@@ -4,6 +4,7 @@ from typing import List, Optional, Dict
 import uuid
 import logging
 from PIL import Image
+import numpy as np
 
 from ..region import Region, RegionExpander, RegionDownsizer
 from ..taggers.tagger_pipeline import TaggerPipeline
@@ -11,6 +12,8 @@ from ..types import TagResult
 from .caption_file_writer import CaptionFileWriter
 from .exif_writer import ExifWriter
 from ..tag.kalliste_tag import KallisteStringTag
+import io
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -32,25 +35,18 @@ class CroppedImage:
         # Initialize tagger
         self.tagger_pipeline = tagger_pipeline or TaggerPipeline(config)
         
-    async def process(self) -> Optional[Dict]:
-        """
-        Process the cropped region.
-        Returns:
-            Optional[Dict]: Processing statistics including all assessments and rejection info
-        """
+    async def process(self) -> Dict:
+        """Process the cropped region."""
         try:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
-            stats = {
-                'rejected_small': False,
-                'technical': None,
-                'aesthetic': None,
-                'overall': None,
-                'kalliste': None
-            }
-            
             with Image.open(self.source_path) as img:
                 logger.info(f"Opened image {self.source_path}")
+                
+                # Get original region dimensions for logging
+                orig_width = self.region.x2 - self.region.x1
+                orig_height = self.region.y2 - self.region.y1
+                logger.info(f"Original region dimensions: {orig_width}x{orig_height}")
                 
                 logger.info("Expanding region to SDXL ratios")
                 expanded_region = RegionExpander.expand_region_to_sdxl_ratios(
@@ -59,11 +55,21 @@ class CroppedImage:
                     img.height
                 )
                 
-                logger.info("Validating size")
+                # Get expanded dimensions for logging
+                exp_width = expanded_region.x2 - expanded_region.x1
+                exp_height = expanded_region.y2 - expanded_region.y1
+                logger.info(f"Expanded region dimensions: {exp_width}x{exp_height}")
+                
+                # Validate size before proceeding
                 if not RegionDownsizer.is_valid_size(expanded_region, img):
-                    logger.info(f"Region too small for SDXL, skipping: {expanded_region}")
-                    stats['rejected_small'] = True
-                    return stats
+                    logger.info(f"Region too small for SDXL after expansion (dimensions: {exp_width}x{exp_height}), skipping")
+                    return {
+                        'rejected_small': True,
+                        'technical': None,
+                        'aesthetic': None,
+                        'overall': None,
+                        'kalliste': None
+                    }
                 
                 logger.info("Cropping image")
                 cropped = img.crop((
@@ -72,6 +78,8 @@ class CroppedImage:
                     expanded_region.x2,
                     expanded_region.y2
                 ))
+                
+                logger.info(f"Cropped dimensions: {cropped.width}x{cropped.height}")
                 
                 logger.info("Running taggers")
                 await self.tagger_pipeline.tag_pillow_image(
@@ -92,38 +100,21 @@ class CroppedImage:
                 for tag_name, tag_values in self.region.kalliste_tags.items():
                     logger.info(f"  {tag_name}: {tag_values}")
                 
-                # Get quality assessments for statistics
-                tech_tag = self.region.kalliste_tags.get("KallisteNimaTechnicalAssessment")
-                if tech_tag:
-                    stats['technical'] = tech_tag.value
-                    
-                aes_tag = self.region.kalliste_tags.get("KallisteNimaAestheticAssessment")
-                if aes_tag:
-                    stats['aesthetic'] = aes_tag.value
-                    
-                overall_tag = self.region.kalliste_tags.get("KallisteNimaOverallAssessment")
-                if overall_tag:
-                    stats['overall'] = overall_tag.value
-                
                 logger.info("Resizing to SDXL")
                 sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
+                logger.info(f"Final SDXL dimensions: {sdxl_image.width}x{sdxl_image.height}")
 
-                # Determine Kalliste assessment
+                # Determine Kalliste assessment and add the tag
                 assessment = self._determine_kalliste_assessment(self.region)
-                stats['kalliste'] = assessment
-                
-                # Add the assessment to tags
                 self.region.add_tag(KallisteStringTag(
                     "KallisteAssessment",
                     assessment
                 ))
                 
-                # Save the image to the accept/reject assessment folder
-                logger.info(f"Saving image to {assessment} folder")
+                # Save the image to the output directory
+                logger.info(f"Saving image to output directory")
                 output_filename = f"{self.source_path.stem}_{self.region.region_type}_{uuid.uuid4()}.png"
-                quality_dir = self.output_dir / assessment
-                quality_dir.mkdir(exist_ok=True)
-                output_path = quality_dir / output_filename
+                output_path = self.output_dir / output_filename
                 sdxl_image.save(output_path, "PNG", optimize=True)
 
                 # Copy the metadata from original image, add kalliste tags, write the caption file
@@ -131,7 +122,13 @@ class CroppedImage:
                 self._write_metadata(output_path)
                 logger.info("Metadata written")
                 
-                return stats
+                return {
+                    'rejected_small': False,
+                    'technical': self.region.get_tag_value('KallisteNimaTechnicalAssessment'),
+                    'aesthetic': self.region.get_tag_value('KallisteNimaAestheticAssessment'),
+                    'overall': self.region.get_tag_value('KallisteNimaOverallAssessment'),
+                    'kalliste': assessment
+                }
                 
         except Exception as e:
             logger.error(f"Failed to process cropped image: {e}")

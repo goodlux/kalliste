@@ -50,15 +50,17 @@ class ModelDownloadManager:
     async def _download_huggingface_models(self):
         """Download models from HuggingFace hub."""
         # Define patterns to exclude from downloads
-        non_pytorch_patterns = [
+        exclude_patterns = [
             "*.onnx",          # ONNX models
             "*.msgpack",       # JAX/Flax serialized models
             "flax_model.*",    # Flax model files
-            "*.bin",           # Use safetensors instead
             "tf_model.*",      # TensorFlow models
             "*.md",            # Documentation
             ".git*",           # Git files
             "*.txt",           # Text files
+            "*.bin",           # Prefer safetensors over bin files
+            "pytorch_model.*", # Generic PyTorch files
+            "*.h5",           # HDF5 files
         ]
         
         # Download HuggingFace models
@@ -68,12 +70,15 @@ class ModelDownloadManager:
                 continue
                 
             logger.info(f"Checking/downloading {name} from HuggingFace")
+            
             await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: snapshot_download(
                     repo_id=config["hf_path"],
                     cache_dir=HF_CACHE_DIR,
-                    ignore_patterns=non_pytorch_patterns
+                    ignore_patterns=exclude_patterns,
+                    local_files_only=False,  # Force check for updates
+                    resume_download=True     # Resume partial downloads
                 )
             )
             logger.info(f"Successfully downloaded {name}")

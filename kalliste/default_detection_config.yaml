@@ -29,6 +29,7 @@ tagger:
     # use_technical: true
     # use_aesthetic: true
 
+
 # Device configuration
 device:
   preferred: "mps"  # For Mac users
@@ -41,11 +42,11 @@ person:
   - caption
   - nima
 
+
 face:
   - wd14
   - caption 
   - nima
-
 
 processing:
   max_concurrent_batches: 1  # Number of batches to process simultaneously

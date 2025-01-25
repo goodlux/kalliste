@@ -1,7 +1,7 @@
 """Writes kalliste tags to XMP metadata."""
-import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
+from .exiftool import run_exiftool
 import logging
 from io import StringIO
 import tempfile
@@ -18,7 +18,7 @@ class ExifWriter:
         self.dest_path = dest_path
 
 
-    def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
+    async def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
         """Write kalliste tags to XMP metadata."""
         temp_config = None
         try:
@@ -157,27 +157,14 @@ class ExifWriter:
         return cmd
             
 
-    def _execute_command(self, cmd: List[str]) -> bool:
+    async def _execute_command(self, cmd: List[str]) -> bool:
         """Execute exiftool command and handle results."""
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode != 0:
-                logger.error(f"Exiftool error: {result.stderr}")
-                return False
-                
-            # Log warnings but don't fail
-            if result.stderr:
-                logger.warning(f"Exiftool warnings: {result.stderr}")
-                
-            logger.debug(f"Exiftool stdout: {result.stdout}")
-            logger.info(f"Successfully wrote XMP metadata to: {self.dest_path}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error executing exiftool command: {e}")
+        success, stdout, stderr = await run_exiftool(cmd)
+        if not success:
+            logger.error(f"Exiftool error: {stderr}")
             return False
+        if stderr:
+            logger.warning(f"Exiftool warnings: {stderr}")
+        logger.debug(f"Exiftool stdout: {stdout}")
+        logger.info(f"Successfully wrote XMP metadata to: {self.dest_path}")
+        return True

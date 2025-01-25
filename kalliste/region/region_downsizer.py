@@ -15,6 +15,7 @@ class RegionDownsizer:
         (1152, 896),   # landscape
         (896, 1152),   # portrait
         (1216, 832),   # wide landscape
+        (832, 1216),   # portrait
         (1344, 768),   # wider landscape 
         (768, 1344),   # tall portrait
     ]
@@ -29,13 +30,16 @@ class RegionDownsizer:
                   key=lambda dims: abs(dims[0]/dims[1] - current_ratio))
     
     @classmethod
-    def is_valid_size(cls, region: Region, img: Image.Image, min_ratio: float = 0.5) -> bool:
-        """Check if region is large enough to be worth processing."""
+    def is_valid_size(cls, region: Region, img: Image.Image) -> bool:
+        """Check if region meets minimum SDXL dimensions."""
         width = region.x2 - region.x1
         height = region.y2 - region.y1
         target_dims = cls.get_target_dimensions(width, height)
-        return (width >= target_dims[0] * min_ratio and 
-                height >= target_dims[1] * min_ratio)
+        
+        logger.debug(f"Checking size: region {width}x{height} against target {target_dims[0]}x{target_dims[1]}")
+        
+        # Region must be AT LEAST as large as target SDXL dimensions
+        return (width >= target_dims[0] and height >= target_dims[1])
     
     @classmethod
     def downsize_to_sdxl(cls, img: Image.Image) -> Image.Image:
@@ -47,10 +51,14 @@ class RegionDownsizer:
         target_dims = min(cls.SDXL_DIMENSIONS, 
                          key=lambda dims: abs(dims[0]/dims[1] - current_ratio))
         
+        logger.debug(f"Downsizing image {img.width}x{img.height} to target {target_dims[0]}x{target_dims[1]}")
+        
         # Make a copy since thumbnail modifies in place
         img_copy = img.copy()
         
         # Use thumbnail to maintain aspect ratio while fitting within target dims
         img_copy.thumbnail(target_dims, Image.Resampling.LANCZOS)
+        
+        logger.debug(f"Final image size after downsizing: {img_copy.width}x{img_copy.height}")
         
         return img_copy
