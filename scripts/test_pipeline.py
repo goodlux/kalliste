@@ -6,7 +6,7 @@ from kalliste import utils  # Sets up logging
 async def main():
     processor = BatchProcessor(
         input_path='/Volumes/g2/kalliste_photos/kalliste_input',
-        output_path='/Volumes/m01/kalliste_photos/images'
+        output_path='/Volumes/m01/kalliste_data/images'
     )
     await processor.setup()
     await processor.process_all()

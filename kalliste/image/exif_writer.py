@@ -21,6 +21,7 @@ class ExifWriter:
     async def write_tags(self, kalliste_tags: Dict[str, Any]) -> bool:
         """Write kalliste tags to XMP metadata."""
         temp_config = None
+        logger.debug(f"Starting write_tags with {len(kalliste_tags)} tags: {kalliste_tags.keys()}")
         try:
             if not self._validate_paths():
                 return False
@@ -37,7 +38,9 @@ class ExifWriter:
             
             # Build and execute exiftool command using temp config
             cmd = self._build_exiftool_command(kalliste_tags, temp_config.name)
-            success = self._execute_command(cmd)
+            logger.debug(f"Executing exiftool command: {' '.join(cmd)}")
+            success = await self._execute_command(cmd)
+            logger.debug(f"Exiftool command completed with success={success}")
             
             # Clean up temp file
             os.unlink(temp_config.name)
@@ -142,6 +145,8 @@ class ExifWriter:
             "-config", config_path,
             "-TagsFromFile", str(self.source_path),
             "-all:all",
+            "-icc_profile:all=",  # Remove ICC profile data
+            "-xmp-crs:all=", # Remove Adobe Lightroom editing data
             "-sep", ",",  # For bag tags
             "-struct"     # For structure tags
         ]

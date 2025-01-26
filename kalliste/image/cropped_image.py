@@ -119,7 +119,7 @@ class CroppedImage:
 
                 # Copy the metadata from original image, add kalliste tags, write the caption file
                 logger.info("Writing metadata")
-                self._write_metadata(output_path)
+                await self._write_metadata(output_path)
                 logger.info("Metadata written")
                 
                 return {
@@ -134,7 +134,7 @@ class CroppedImage:
             logger.error(f"Failed to process cropped image: {e}")
             raise
         
-    def _write_metadata(self, image_path: Path):
+    async def _write_metadata(self, image_path: Path):
         """Write region's kalliste_tags to both caption file and XMP metadata."""
         try:
             # Write caption file
@@ -143,9 +143,8 @@ class CroppedImage:
             if not caption_writer.write_caption(self.region.kalliste_tags):
                 logger.error("Failed to write caption file")
                 
-            # Write XMP metadata
             exif_writer = ExifWriter(self.source_path, image_path)
-            if not exif_writer.write_tags(self.region.kalliste_tags):
+            if not await exif_writer.write_tags(self.region.kalliste_tags):
                 logger.error("Failed to write XMP metadata")
                 
         except Exception as e:
