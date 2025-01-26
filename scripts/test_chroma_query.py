@@ -13,18 +13,20 @@ data_loader = ImageLoader()
 embedding_function = OpenCLIPEmbeddingFunction()
 # Print the results
 collection = client.get_or_create_collection(
-    name="kalliste2",
+    name="kalliste_metadata",
     embedding_function=embedding_function,
     data_loader=data_loader,
 
     )
 
+results = collection.query(
+    
+    includes=['metadata']
+)
 
-
-results=collection.query(
-    query_texts="a girl's backside",
-    include=['uris'],
-    n_results=100,
-    )
+# results=collection.query(
+#     where={"KallisteLrRating": "1_star"},
+#     n_results=100,
+#     )
 
 print(results)
