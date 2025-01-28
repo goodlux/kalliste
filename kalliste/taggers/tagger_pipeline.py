@@ -13,6 +13,30 @@ from ..types import TagResult
 from ..tag.kalliste_tag import KallisteRealTag, KallisteStringTag, KallisteBagTag, KallisteStructureTag
 from ..region import Region
 
+# TODO:LMLooking at this structure of the pipeline, it's totally un maintainable, too ... 
+# like, I get that we couldn't pass the region down to each tagger ... 
+# i think there was a reason for this .... 
+# but now we have this long file that would just grow and grow if we added different taggers. 
+# It feels a bit brutalistic. I don't understand why we aren't just creating the KallisteTags in the taggers themselves, 
+# instead of passing this all back to the tagger pipeline. Like we take these simple results, put them into TagResults, 
+# pass the tag results and an arbitrary array, then just make KallisteTags. 
+# Why don't we make the KallisteTags in the taggers, pass them back to TaggerPipeline, 
+# tagger pipeline just takes them and adds them to the region?
+# 
+# You're right - the current structure adds unnecessary complexity by:
+
+# Converting tagger outputs to TagResults
+# Passing them to pipeline
+# Converting TagResults back to KallisteTags
+
+# A simpler approach would be:
+
+# Each tagger creates and returns its own KallisteTags
+# Pipeline just collects and adds tags to the region
+# Remove TagResults entirely since they're just an intermediate step
+
+
+
 logger = logging.getLogger(__name__)
 
 class TaggerPipeline:
@@ -176,13 +200,13 @@ class TaggerPipeline:
             # Add assessments
             if 'technical_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaTechnicalAssessment",
+                    "KallisteNimaAssessmentTechnial",
                     nima_results['technical_assessment'][0].label
                 ))
                 
             if 'aesthetic_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaAestheticAssessment",
+                    "KallisteNimaAssessmentAesthetic",
                     nima_results['aesthetic_assessment'][0].label
                 ))
                 
@@ -193,17 +217,13 @@ class TaggerPipeline:
                         region.add_tag(KallisteRealTag(
                             "KallisteNimaCalcAverage",
                             calc.confidence
-                        ))
-                    elif calc.category == 'calc_distribution':
-                        region.add_tag(KallisteRealTag(
-                            "KallisteNimaCalcDistribution",
-                            calc.confidence
-                        ))
+                        )
+                    )
                         
             # Add overall assessment
             if 'overall_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaOverallAssessment",
+                    "KallisteNimaAssessmentOverall",
                     nima_results['overall_assessment'][0].label
                 ))
 

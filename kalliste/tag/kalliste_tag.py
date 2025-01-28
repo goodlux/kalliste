@@ -19,10 +19,6 @@ class KallisteBaseTag:
     def to_xmp(self) -> str:
         """Format value for XMP - override if needed."""
         return str(self.value)
-    
-    def to_chroma(self) -> Any:
-        """Convert tag value to ChromaDB-compatible format."""
-        return self.value
 
 class KallisteStringTag(KallisteBaseTag):
     """A tag containing a string value."""
@@ -34,9 +30,6 @@ class KallisteStringTag(KallisteBaseTag):
 
     def validate_value(self, value: Any) -> bool:
         return isinstance(value, str)
-    
-    def to_chroma(self) -> str:
-        return str(self.value)
 
 class KallisteBagTag(KallisteBaseTag):
     """A tag containing an unordered set of strings."""
@@ -50,19 +43,13 @@ class KallisteBagTag(KallisteBaseTag):
         return isinstance(value, (set, list))
     
     def to_xmp(self) -> str:
-        """Format as comma-separated list for exiftool."""
-        # Clean up any Python formatting artifacts and normalize
+        """Format as newline-separated list for exiftool."""
         cleaned_values = []
         for val in self.value:
-            # Remove Python set/dict formatting chars
-            val = str(val).strip("'{}")
-            # Remove any extra whitespace
-            val = val.strip()
-            cleaned_values.append(val)
-        return ", ".join(sorted(cleaned_values))
-    
-    def to_chroma(self) -> List[str]:
-        return sorted(str(x).strip() for x in self.value if x and str(x).strip())
+            val = str(val).strip().strip('"\'')
+            if val:
+                cleaned_values.append(val)
+        return "\n".join(sorted(cleaned_values))
 
 class KallisteSeqTag(KallisteBaseTag):
     """A tag containing an ordered sequence of strings.
@@ -79,9 +66,6 @@ class KallisteSeqTag(KallisteBaseTag):
     def to_xmp(self) -> str:
         """Format as comma-separated values for exiftool."""
         return ",".join(self.value)
-    
-    def to_chroma(self) -> List[str]:
-        return [str(x) for x in self.value]
 
 class KallisteBooleanTag(KallisteBaseTag):
     """A tag containing a boolean value."""
@@ -125,9 +109,6 @@ class KallisteIntegerTag(KallisteBaseTag):
 
     def validate_value(self, value: Any) -> bool:
         return isinstance(value, int)
-    
-    def to_chroma(self) -> int:
-        return int(self.value)
 
 class KallisteRealTag(KallisteBaseTag):
     """A tag containing a floating point value."""
@@ -139,9 +120,6 @@ class KallisteRealTag(KallisteBaseTag):
 
     def validate_value(self, value: Any) -> bool:
         return isinstance(value, (int, float))
-    
-    def to_chroma(self) -> float:
-        return float(self.value)
 
 class KallisteDateTag(KallisteBaseTag):
     """A tag containing a datetime value.
@@ -159,10 +137,7 @@ class KallisteDateTag(KallisteBaseTag):
         """Format as ISO 8601 date string with timezone."""
         # Format with timezone offset (exiftool expects this format)
         return self.value.astimezone().isoformat()
-    
-    def to_chroma(self) -> str:
-        return self.value.isoformat()
-    
+
 class KallisteStructureTag(KallisteBaseTag):
     """
     A tag containing structured data following exiftool's XMP structure format.
@@ -241,14 +216,3 @@ class KallisteStructureTag(KallisteBaseTag):
         Array of structures: [{field1=value1},{field1=value2}]
         """
         return self._format_value(self.value)
-    
-    def to_chroma(self) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
-        def convert_value(v: Any) -> Any:
-            if isinstance(v, dict):
-                return {k: convert_value(val) for k, val in v.items()}
-            elif isinstance(v, list):
-                return [convert_value(x) for x in v]
-            elif isinstance(v, (int, float, str, bool)):
-                return v
-            return str(v)
-        return convert_value(self.value)

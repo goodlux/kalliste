@@ -4,6 +4,11 @@ import httpx
 from pathlib import Path
 from huggingface_hub import snapshot_download
 from ..config import MODELS, YOLO_CACHE_DIR, HF_CACHE_DIR, NIMA_CACHE_DIR
+import os
+# Convert string paths to expanded Path objects
+YOLO_CACHE_DIR = Path(os.path.expanduser(YOLO_CACHE_DIR))
+HF_CACHE_DIR = Path(os.path.expanduser(HF_CACHE_DIR))
+NIMA_CACHE_DIR = Path(os.path.expanduser(NIMA_CACHE_DIR))
 
 logger = logging.getLogger(__name__)
 

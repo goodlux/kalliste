@@ -125,11 +125,6 @@ class NIMATagger(AbstractTagger):
 
             results["overall_calculations"] = [
                 TagResult(label="average", confidence=calc_average, category="calc_average"),
-                TagResult(
-                    label=combined_dist_str,
-                    confidence=calc_average,
-                    category="calc_distribution"
-                )
             ]
                             
             results["overall_assessment"] = [

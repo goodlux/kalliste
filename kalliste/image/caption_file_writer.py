@@ -119,9 +119,10 @@ class CaptionFileWriter:
         # Add LrRating if it exists
         if "KallisteLrRating" in kalliste_tags:
             lr_rating = kalliste_tags["KallisteLrRating"].value
-            if lr_rating:
-                caption_parts.append(lr_rating)
-                logger.debug(f"Added Lightroom rating: {lr_rating}")
+            if lr_rating is not None:
+                rating_str = 'unrated' if lr_rating == 0 else f"{lr_rating}_star"
+                caption_parts.append(rating_str)
+                logger.debug(f"Added Lightroom rating: {rating_str}")
         
         # Add LR tags if they exist
         if "KallisteLrTags" in kalliste_tags:

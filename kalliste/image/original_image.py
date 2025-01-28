@@ -144,87 +144,81 @@ class OriginalImage:
             logger.error(f"Failed to extract Lightroom metadata: {e}", exc_info=True)
             return {}, [], []
 
+
     def _extract_path_metadata(self, region: Region):
-        """Extract and set metadata tags directly from the path."""
+        """Extract metadata from folder name using format:
+        {YYYYMMDD}_{SHOOT_NAME}_{LOCATION}[-@{PERSON}][-#{SOURCE}][-{ADDITIONAL}]
+        Example: 20191214_NaGiLux_LinesS4-@FrBuLux-#video-outdoors
+        
+        Components before any dash form KallistePhotoshoot, with:
+        - First 8 digits = KallistePhotoshootDate if valid YYYYMMDD
+        - Last part = KallistePhotoshootLocation
+        
+        Optional dash-prefixed components:
+        - @prefix = KallistePersonName (single name)
+        - #prefix = KallisteSourceType
+        - Others = KallisteTags array"""
+
         try:
             folder_name = self.source_path.parent.name
-            parts = folder_name.split('-')
             
-            # Try to parse date from first part
-            if parts and re.match(r'^\d{8}$', parts[0]):
-                try:
-                    date = datetime.strptime(parts[0], '%Y%m%d')
-                    region.add_tag(KallisteDateTag("KallistePhotoshootDate", date))
-                    # After date, first part before any @ or # is the shoot name
-                    if len(parts) > 1:
-                        shoot_name = next((part for part in parts[1:] 
-                                        if not part.startswith('@') and 
-                                        not part.startswith('#')), None)
-                        if shoot_name:
-                            region.add_tag(KallisteStringTag(
-                                "KallistePhotoshootName",
-                                shoot_name
-                            ))
-                except ValueError:
-                    pass
+            # Split main parts (before any dash) from optional parts
+            main_parts, *optional = folder_name.split('-', 1)
+            optional = optional[0] if optional else ''
+            
+             # Set full photoshoot name
+            region.add_tag(KallisteStringTag("KallistePhotoshoot", main_parts))
 
-            # Process each part
-            for part in parts:
-                if not part:
-                    continue
-                    
-                # Person name starts with @
-                if part.startswith('@'):
-                    region.add_tag(KallisteStringTag(
-                        "KallistePersonName",
-                        part[1:]  # Remove @ symbol
-                    ))
-                    
-                # Source type starts with #    
-                elif part.startswith('#'):
-                    region.add_tag(KallisteStringTag(
-                        "KallisteSourceType",
-                        part[1:]  # Remove # symbol
-                    ))
+            # Process main photoshoot components
+            shoot_parts = main_parts.split('_')
+            if len(shoot_parts) >= 3:
+               
+                # Try to parse date if first part is 8 digits
+                if re.match(r'^\d{8}$', shoot_parts[0]):
+                    try:
+                        date = datetime.strptime(shoot_parts[0], '%Y%m%d')
+                        region.add_tag(KallisteDateTag("KallistePhotoshootDate", date))
+                    except ValueError:
+                        pass
                 
-                # Everything else goes to additional tags
-                elif not re.match(r'^\d{8}$', part):  # Skip the date part
-                    # We'll collect these and add as a bag tag at the end
-                    if not hasattr(self, '_additional_tags'):
-                        self._additional_tags = set()
-                    self._additional_tags.add(part)
-                    
-            # Add collected tags as a bag tag
-            if hasattr(self, '_additional_tags'):
-                region.add_tag(KallisteBagTag(
-                    "KallisteTags", 
-                    self._additional_tags
+                # Last part is location
+                region.add_tag(KallisteStringTag(
+                    "KallistePhotoshootLocation",
+                    shoot_parts[-1]
                 ))
-                delattr(self, '_additional_tags')
+            
+            # Process optional dash-separated parts
+            if optional:
+                additional_tags = set()
+                for part in optional.split('-'):
+                    if not part:
+                        continue
+                    
+                    if part.startswith('@'):
+                        region.add_tag(KallisteStringTag(
+                            "KallistePersonName",
+                            part[1:]  # Remove @ symbol
+                        ))
+                    elif part.startswith('#'):
+                        region.add_tag(KallisteStringTag(
+                            "KallisteSourceType",
+                            part[1:]  # Remove # symbol
+                        ))
+                    else:
+                        additional_tags.add(part)
                 
+                if additional_tags:
+                    region.add_tag(KallisteBagTag("KallisteTags", additional_tags))
+                    
         except Exception as e:
             logger.error(f"Failed to extract path metadata: {e}", exc_info=True)
 
-    async def process(self) -> Dict[str, Dict]:
+    async def process(self):
         """
-        Process the image and return statistics.
-        Returns:
-            Dict: Statistics organized by region type, including:
-                - count of regions detected
-                - count of regions rejected for size
-                - assessment counts (technical, aesthetic, overall, kalliste)
+        Process the image 
         """
         try:
-            # Initialize statistics structure
-            stats = defaultdict(lambda: {
-                'count': 0,
-                'rejected_small': 0,
-                'technical': defaultdict(int),
-                'aesthetic': defaultdict(int),
-                'overall': defaultdict(int),
-                'kalliste': defaultdict(int)
-            })
-
+            
             # Get all Lightroom metadata in one call
             general_metadata, lr_faces, lr_tags = await self._extract_lr_metadata()
             logger.debug(f"Extracted LR metadata: {general_metadata}")
@@ -248,7 +242,6 @@ class OriginalImage:
             for region in results.regions:
                 # Record region detection in statistics
                 region_type = region.region_type
-                stats[region_type]['count'] += 1
 
                 # Extract and set path-based metadata tags directly
                 self._extract_path_metadata(region)
@@ -290,13 +283,12 @@ class OriginalImage:
                 # Add Rating if present
                 if 'lr_rating' in general_metadata:
                     star_rating = general_metadata['lr_rating']
-                    rating_str = 'unrated' if star_rating == 0 else f"{star_rating}_star"
-                    region.add_tag(KallisteStringTag(
-                        "KallisteLrRating", 
-                        rating_str
+                    region.add_tag(KallisteIntegerTag(
+                        "KallisteLrRating",
+                        star_rating
                     ))
-                    logger.debug(f"Added LR rating tag: {rating_str}")
-                
+                    logger.debug(f"Added LR rating tag: {star_rating}")
+                                   
                 # Add Label if present
                 if 'lr_label' in general_metadata:
                     region.add_tag(KallisteStringTag(
@@ -312,22 +304,8 @@ class OriginalImage:
                     region,
                     config=self.config
                 )
-                crop_stats = await cropped.process()
+                await cropped.process()
                 
-                # Update statistics from crop processing
-                if crop_stats:
-                    if crop_stats['rejected_small']:
-                        stats[region_type]['rejected_small'] += 1
-                    if crop_stats['technical']:
-                        stats[region_type]['technical'][crop_stats['technical']] += 1
-                    if crop_stats['aesthetic']:
-                        stats[region_type]['aesthetic'][crop_stats['aesthetic']] += 1
-                    if crop_stats['overall']:
-                        stats[region_type]['overall'][crop_stats['overall']] += 1
-                    if crop_stats['kalliste']:
-                        stats[region_type]['kalliste'][crop_stats['kalliste']] += 1
-            
-            return dict(stats)  # Convert defaultdict to regular dict
                     
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")

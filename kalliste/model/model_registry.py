@@ -11,6 +11,12 @@ from typing import Dict, Any
 
 from ..config import MODELS, YOLO_CACHE_DIR, NIMA_CACHE_DIR
 from .model_download_manager import ModelDownloadManager
+import os
+from pathlib import Path
+
+# Convert string paths to expanded Path objects 
+YOLO_CACHE_DIR = Path(os.path.expanduser(YOLO_CACHE_DIR))
+NIMA_CACHE_DIR = Path(os.path.expanduser(NIMA_CACHE_DIR))
 
 logger = logging.getLogger(__name__)
 

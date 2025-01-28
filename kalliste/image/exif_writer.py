@@ -154,7 +154,7 @@ class ExifWriter:
         # Add each kalliste tag
         for tag_name, tag in kalliste_tags.items():
             # Use normal syntax for all tags
-            cmd.extend([f"-XMP-Kalliste:{tag_name}={tag.value}"])
+            cmd.extend([f"-XMP-Kalliste:{tag_name}={tag.to_xmp()}"])
         
         cmd.extend([str(self.dest_path), "-overwrite_original"])
         

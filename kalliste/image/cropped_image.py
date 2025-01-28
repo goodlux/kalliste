@@ -1,10 +1,12 @@
 """Handles cropped image processing for detected regions."""
+from calendar import c
 from pathlib import Path
 from typing import List, Optional, Dict
 import uuid
 import logging
 from PIL import Image
 import numpy as np
+import os
 
 from ..region import Region, RegionExpander, RegionDownsizer
 from ..taggers.tagger_pipeline import TaggerPipeline
@@ -12,6 +14,8 @@ from ..types import TagResult
 from .caption_file_writer import CaptionFileWriter
 from .exif_writer import ExifWriter
 from ..tag.kalliste_tag import KallisteStringTag
+from ..db.kalliste_db import KallisteDB
+from ..db.chroma_db import ChromaDB
 import io
 import base64
 
@@ -34,8 +38,12 @@ class CroppedImage:
         
         # Initialize tagger
         self.tagger_pipeline = tagger_pipeline or TaggerPipeline(config)
+
+        # Initialize KallisteDB
+        self.db = KallisteDB()
+        self.chroma_db = ChromaDB()
         
-    async def process(self) -> Dict:
+    async def process(self):
         """Process the cropped region."""
         try:
             self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -88,13 +96,6 @@ class CroppedImage:
                     region=self.region
                 )
                 
-                # Add original path
-                path_tag = KallisteStringTag(
-                    "KallisteOriginalPath", 
-                    str(self.source_path)
-                )
-                self.region.add_tag(path_tag)
-                
                 # Log all tags after processing
                 logger.info("Final kalliste_tags:")
                 for tag_name, tag_values in self.region.kalliste_tags.items():
@@ -121,14 +122,15 @@ class CroppedImage:
                 logger.info("Writing metadata")
                 await self._write_metadata(output_path)
                 logger.info("Metadata written")
-                
-                return {
-                    'rejected_small': False,
-                    'technical': self.region.get_tag_value('KallisteNimaTechnicalAssessment'),
-                    'aesthetic': self.region.get_tag_value('KallisteNimaAestheticAssessment'),
-                    'overall': self.region.get_tag_value('KallisteNimaOverallAssessment'),
-                    'kalliste': assessment
-                }
+
+                # Add the image to the database
+                image_id = self.db.add_image(str(output_path), self.region.kalliste_tags)
+                logger.info(f"Added to database with ID: {image_id}")
+
+                # Add the image to chroma
+                self.chroma_db.add_image_to_chroma(str(image_id), str(output_path))
+                logger.info(f"Added image: {image_id} to Chroma")
+
                 
         except Exception as e:
             logger.error(f"Failed to process cropped image: {e}")

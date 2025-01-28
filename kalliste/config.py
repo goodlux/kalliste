@@ -1,15 +1,22 @@
-from pathlib import Path
+"""Kalliste configuration."""
+
+# Base data directory
+KALLISTE_DATA_DIR = "/Volumes/m01/kalliste_data"
+
+# Kalliste database settings
+KALLISTE_DB_PATH = "/Volumes/m01/kalliste_data/kalliste_db/kalliste.sqlite3"
+
+# Chroma database settings
+CHROMA_DB_DIR = "/Volumes/m01/kalliste_data/chroma_db"
+
 
 # Cache directories
-CACHE_DIR = Path.home() / ".cache"
-YOLO_CACHE_DIR = CACHE_DIR / "ultralytics"
-HF_CACHE_DIR = CACHE_DIR / "huggingface" / "hub"
-NIMA_CACHE_DIR = CACHE_DIR / "kalliste" / "nima"
+CACHE_DIR = "~/.cache"
+YOLO_CACHE_DIR = CACHE_DIR + "/ultralytics"
+HF_CACHE_DIR =  CACHE_DIR + "/huggingface/hub"
+NIMA_CACHE_DIR = CACHE_DIR + "/kalliste/nima"
 
-# ChromaDB configuration
-CHROMADB_DIR = Path("/Volumes/m01/kalliste_data/chromadb")
-
-# Core model configurations - all in default cache locations
+# Core model configurations
 MODELS = {
     # Currently we are only using YOLO models for detection
     "detection": {
@@ -55,8 +62,7 @@ MODELS = {
     }
 }
 
-# TODO: Remove these from the codebase, instead use the MODELS config above. 
-# Use the model IDs from MODELS dictionary
+# Convenience references to model IDs
 BLIP2_MODEL_ID = MODELS["classification"]["blip2"]
 ORIENTATION_MODEL_ID = MODELS["classification"]["orientation"]
 WD14_MODEL_ID = MODELS["classification"]["wd14"]
