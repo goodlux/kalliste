@@ -5,23 +5,25 @@ CREATE TABLE tag (
 
 CREATE TABLE image (
     image_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_path TEXT NOT NULL,
+    image_file_path TEXT NOT NULL,
     photoshoot TEXT NOT NULL,
     photoshoot_date DATE,
     photoshoot_location TEXT,
     person_name TEXT,
     source_type TEXT,
     lr_rating INTEGER,
-    creation_date TIMESTAMP,
+    lr_label TEXT,
+    image_date TIMESTAMP,
     region_type TEXT,
     nima_technical_score REAL,
-    nima_assessment_technical TEXT,
-    nima_aesthetic_score REAL,
     nima_assessment_aesthetic TEXT,
-    nima_overall_score REAL,
+    nima_assessment_technical TEXT,
     nima_assessment_overall TEXT,
-    nima_calc_average REAL,
-    assessment TEXT
+    nima_score_aesthetic REAL,
+    nima_score_technical REAL,
+    nima_score_calc_average REAL,
+    kalliste_assessment TEXT,
+    record_creation_date TIMESTAMP,
 );
 
 -- Indexes for common queries and foreign key relationships
