@@ -19,6 +19,18 @@ NIMA_CACHE_DIR = CACHE_DIR + "/kalliste/nima"
 # Core model configurations
 MODELS = {
     # Currently we are only using YOLO models for detection
+    "embeddings": {
+        "dinov2": {
+            "model_id": "dinov2",
+            "hf_path": "facebook/dinov2-large",  # 1024-dim embeddings
+            "files": []
+        },
+        "openclip": {
+            "model_id": "openclip",
+            "hf_path": "laion/CLIP-ViT-L-14-laion2B-s32B-b82K",  # Strong LAION-trained CLIP
+            "files": []
+        }
+    },
     "detection": {
         "yolo": {
             "model_id": "yolo",

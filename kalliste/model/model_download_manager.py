@@ -30,13 +30,46 @@ class ModelDownloadManager:
             await self._download_huggingface_models()
             # Download NIMA models
             await self._download_nima_models()
-            
+            # Download embedding models
+            await self._download_embedding_models() 
             logger.info("All model downloads complete")
             
         except Exception as e:
             logger.error(f"Failed to download models: {e}", exc_info=True)
             raise RuntimeError(f"Model download failed: {str(e)}") from e
+
+
+    async def _download_embedding_models(self):
+        """Download embedding models from HuggingFace hub."""
+        exclude_patterns = [
+            "*.onnx",
+            "*.msgpack",
+            "flax_model.*",
+            "tf_model.*",
+            "*.md",
+            ".git*",
+            "*.txt",
+            "*.bin",
+            "pytorch_model.*",
+            "*.h5",
+        ]
+        
+        for name, config in MODELS["embeddings"].items():
+            logger.info(f"Checking/downloading {name} from HuggingFace")
             
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: snapshot_download(
+                    repo_id=config["hf_path"],
+                    cache_dir=HF_CACHE_DIR,
+                    ignore_patterns=exclude_patterns,
+                    local_files_only=False,
+                    resume_download=True
+                )
+            )
+            logger.info(f"Successfully downloaded {name}")
+
+
     async def _download_yolo_models(self):
         """Download YOLO detection models."""
         for name, config in MODELS["detection"].items():

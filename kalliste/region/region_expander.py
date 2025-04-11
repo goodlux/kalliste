@@ -75,24 +75,65 @@ class RegionExpander:
         y1 = center_y - (new_height / 2)
         y2 = center_y + (new_height / 2)
         
-        # Adjust if outside image bounds while maintaining ratio
+        # Adjust if outside image bounds - first try simple shifts
+        # Horizontal adjustment
         if x1 < 0:
-            shift = -x1
+            # Shift entire box right
+            x2 = x2 - x1  # Add the negative x1 value to x2
             x1 = 0
-            x2 = new_width
         elif x2 > img_width:
-            shift = img_width - x2
+            # Shift entire box left
+            x1 = x1 - (x2 - img_width)
             x2 = img_width
-            x1 = x2 - new_width
             
+        # Vertical adjustment
         if y1 < 0:
-            shift = -y1
+            # Shift entire box down
+            y2 = y2 - y1  # Add the negative y1 value to y2
             y1 = 0
-            y2 = new_height
         elif y2 > img_height:
-            shift = img_height - y2
+            # Shift entire box up
+            y1 = y1 - (y2 - img_height)
             y2 = img_height
-            y1 = y2 - new_height
+            
+        # If we still have issues after shifting, we need to resize while maintaining ratio
+        # Handle horizontal overflow
+        if x1 < 0:
+            x1 = 0
+            new_width = min(img_width, new_width)  # Can't be wider than image
+            x2 = x1 + new_width
+            # Adjust height to maintain ratio
+            new_height = new_width / target_ratio
+            y_center = (y1 + y2) / 2
+            y1 = y_center - (new_height / 2)
+            y2 = y_center + (new_height / 2)
+        elif x2 > img_width:
+            x2 = img_width
+            new_width = x2 - x1
+            # Adjust height to maintain ratio
+            new_height = new_width / target_ratio
+            y_center = (y1 + y2) / 2
+            y1 = y_center - (new_height / 2)
+            y2 = y_center + (new_height / 2)
+        
+        # Handle vertical overflow
+        if y1 < 0:
+            y1 = 0
+            new_height = min(img_height, new_height)  # Can't be taller than image
+            y2 = y1 + new_height
+            # Adjust width to maintain ratio
+            new_width = new_height * target_ratio
+            x_center = (x1 + x2) / 2
+            x1 = x_center - (new_width / 2)
+            x2 = x_center + (new_width / 2)
+        elif y2 > img_height:
+            y2 = img_height
+            new_height = y2 - y1
+            # Adjust width to maintain ratio
+            new_width = new_height * target_ratio
+            x_center = (x1 + x2) / 2
+            x1 = x_center - (new_width / 2)
+            x2 = x_center + (new_width / 2)
             
         # Final bounds check
         if x1 < 0 or y1 < 0 or x2 > img_width or y2 > img_height:

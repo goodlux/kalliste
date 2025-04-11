@@ -16,8 +16,10 @@ from .exif_writer import ExifWriter
 from ..tag.kalliste_tag import KallisteStringTag
 from ..db.kalliste_db import KallisteDB
 from ..db.chroma_db import ChromaDB
+from ..db.milvus_db import MilvusDB
 import io
 import base64
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,17 @@ class CroppedImage:
                     img.width,
                     img.height
                 )
+                
+                # Check if expansion was successful
+                if expanded_region is None:
+                    logger.info("Region expansion failed - could not maintain aspect ratio within image bounds")
+                    return {
+                        'rejected_expansion_failed': True,
+                        'technical': None,
+                        'aesthetic': None,
+                        'overall': None,
+                        'kalliste': None
+                    }
                 
                 # Get expanded dimensions for logging
                 exp_width = expanded_region.x2 - expanded_region.x1
@@ -123,13 +136,27 @@ class CroppedImage:
                 await self._write_metadata(output_path)
                 logger.info("Metadata written")
 
-                # Add the image to the database
-                image_id = self.db.add_image(str(output_path), self.region.kalliste_tags)
-                logger.info(f"Added to database with ID: {image_id}")
+                # Add the image data to Milvus
+                milvus_db = MilvusDB()
+                if milvus_db.insert(str(output_path), self.region.kalliste_tags):
+                    logger.info(f"Successfully added image to Milvus: {output_path}")
+                else:
+                    logger.error(f"Failed to add image to Milvus: {output_path}")
 
-                # Add the image to chroma
-                self.chroma_db.add_image_to_chroma(str(image_id), str(output_path))
-                logger.info(f"Added image: {image_id} to Chroma")
+                # # Add the image to the database
+                # image_id = self.db.add_image(str(output_path), self.region.kalliste_tags)
+                # logger.info(f"Added to database with ID: {image_id}")
+
+                # # Add the image to chroma
+                # self.chroma_db.add_image_to_chroma(str(image_id), str(output_path))
+                # logger.info(f"Added image: {image_id} to Chroma")
+                
+                # Return success with assessment info
+                return {
+                    "success": True,
+                    "assessment": assessment,
+                    "output_path": str(output_path)
+                }
 
                 
         except Exception as e:

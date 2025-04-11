@@ -238,6 +238,13 @@ class OriginalImage:
                 region_matcher = RegionMatcher()
                 results.regions = region_matcher.match_faces(results.regions, lr_faces)
             
+            # Track successful processing
+            results_summary = {
+                "total_regions": len(results.regions),
+                "successful_regions": 0,
+                "region_results": []
+            }
+            
             # Process each detected region
             for region in results.regions:
                 # Record region detection in statistics
@@ -304,8 +311,15 @@ class OriginalImage:
                     region,
                     config=self.config
                 )
-                await cropped.process()
+                region_result = await cropped.process()
+                results_summary["region_results"].append(region_result)
                 
+                # Check if this was a successful region
+                if region_result and isinstance(region_result, dict) and region_result.get("success") == True:
+                    results_summary["successful_regions"] += 1
+            
+            logger.info(f"Successfully processed {results_summary['successful_regions']} out of {results_summary['total_regions']} regions")
+            return results_summary
                     
         except Exception as e:
             logger.error(f"Failed to process image {self.source_path}: {e}")

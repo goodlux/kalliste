@@ -68,7 +68,8 @@ class ModelRegistry:
                 await cls._initialize_captioning_models()      # BLIP2
                 await cls._initialize_orientation_models()     # Orientation
                 await cls._initialize_wd14_model()
-                await cls._initialize_nima_models()           # NIMA aesthetic and technical
+                await cls._initialize_nima_models()            # NIMA aesthetic and technical
+                await cls._initialize_embedding_models()        # Embedding models
 
                 cls._initialized = True
                 logger.info("Model registry initialization complete")
@@ -324,6 +325,49 @@ class ModelRegistry:
         except Exception as e:
             logger.error(f"Failed to initialize orientation model {model_name}: {e}")
             raise
+
+    @classmethod
+    async def _initialize_embedding_models(cls) -> None:
+        """Initialize DINOv2 and OpenCLIP embedding models."""
+        import torch
+        from transformers import AutoImageProcessor, AutoModel
+        from open_clip import create_model_and_transforms, create_model_from_pretrained
+        
+        try:
+            # Initialize DINOv2
+            dinov2_config = MODELS["embeddings"]["dinov2"]
+            dinov2_model = AutoModel.from_pretrained(dinov2_config['hf_path']).to(cls.device)
+            dinov2_processor = AutoImageProcessor.from_pretrained(dinov2_config['hf_path'])
+            dinov2_model.eval()
+            
+            cls._models[dinov2_config["model_id"]] = {
+                "model": dinov2_model,
+                "processor": dinov2_processor,
+                "type": "embedding"
+            }
+            logger.info("Initialized DINOv2 embedding model")
+            
+            # Initialize OpenCLIP - using create_model_from_pretrained instead
+            openclip_config = MODELS["embeddings"]["openclip"]
+            model, _, preprocess = create_model_and_transforms(
+                'ViT-L-14',
+                pretrained='laion2b_s32b_b82k'
+            )
+            model = model.to(cls.device)
+            model.eval()
+            
+            cls._models[openclip_config["model_id"]] = {
+                "model": model,
+                "processor": preprocess,
+                "type": "embedding"
+            }
+            logger.info("Initialized OpenCLIP embedding model")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize embedding models: {e}", exc_info=True)
+            raise
+
+
 
     @classmethod
     def get_model(cls, model_id: str) -> Dict[str, Any]:

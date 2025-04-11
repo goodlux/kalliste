@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 import asyncio
+from pathlib import Path
 from kalliste.image.batch_processor import BatchProcessor
 from kalliste import utils  # Sets up logging
 
 async def main():
+    # Define paths
+    input_path = '/Volumes/g2/kalliste_photos/kalliste_input'
+    output_path = '/Volumes/m01/kalliste_data/images'
+    processed_path = '/Volumes/g2/kalliste_photos/kalliste_processed'
+    
+    # Create processed directory if it doesn't exist
+    Path(processed_path).mkdir(exist_ok=True, parents=True)
+    
     processor = BatchProcessor(
-        input_path='/Volumes/g2/kalliste_photos/kalliste_input',
-        output_path='/Volumes/m01/kalliste_data/images'
+        input_path=input_path,
+        output_path=output_path,
+        processed_path=processed_path
     )
     await processor.setup()
     await processor.process_all()

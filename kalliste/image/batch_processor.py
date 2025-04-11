@@ -11,9 +11,10 @@ import sys
 logger = logging.getLogger(__name__)
 
 class BatchProcessor:
-    def __init__(self, input_path: str, output_path: str, config: Optional[Dict] = None):
+    def __init__(self, input_path: str, output_path: str, processed_path: Optional[str] = None, config: Optional[Dict] = None):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
+        self.processed_path = Path(processed_path) if processed_path else None
         self.config = config or self._load_config()
         self.batches: List[Batch] = []
         self.status = ProcessingStatus.PENDING
@@ -41,9 +42,16 @@ class BatchProcessor:
             batch_output = self.output_path / folder.name
             batch_output.mkdir(parents=True, exist_ok=True)
             
+            # Set up processed path for this batch if specified
+            batch_processed_path = None
+            if self.processed_path:
+                batch_processed_path = self.processed_path / folder.name
+                batch_processed_path.mkdir(parents=True, exist_ok=True)
+            
             batch = Batch(
                 input_path=folder,
                 output_path=batch_output,
+                processed_path=batch_processed_path,
                 default_config=self.config
             )
             self.batches.append(batch)
@@ -78,7 +86,7 @@ class BatchProcessor:
 
             if errors:
                 error_msg = "\n".join(f"Batch {name}: {error}" for name, error in errors)
-                raise RuntimeError(f"Failed to process {len(errors)} batch(es):\n{error_msg}")
+                logger.warning(f"Completed with {len(errors)} batch error(s):\n{error_msg}")
 
             self.status = ProcessingStatus.COMPLETE
             logger.info(f"Processing complete: {total_images} images in {len(self.batches)} batches")

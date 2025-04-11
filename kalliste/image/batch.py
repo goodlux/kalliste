@@ -8,9 +8,10 @@ from .original_image import OriginalImage
 logger = logging.getLogger(__name__)
 
 class Batch:
-    def __init__(self, input_path: Path, output_path: Path, default_config: Dict):
+    def __init__(self, input_path: Path, output_path: Path, default_config: Dict, processed_path: Optional[Path] = None):
         self.input_path = input_path
         self.output_path = output_path
+        self.processed_path = processed_path
         self.default_config = default_config
         self.config = self._load_batch_config()
         self.images: List[OriginalImage] = []
@@ -72,12 +73,37 @@ class Batch:
         if not self.images:
             logger.warning("No images to process")
             return
-
+        
         # Process images sequentially
         for image in self.images:
             try:
                 logger.info(f"Processing image: {image.source_path.name}")
-                await image.process()
+                result = await image.process()
+                
+                # Check if we had any successful processing
+                # If all regions were skipped (too small or failed to expand), don't consider it successfully processed
+                processed_successfully = False
+                
+                # Only consider truly successful if we got some actual processing done
+                if result and isinstance(result, dict):
+                    # Check if we have any results that aren't rejection flags
+                    has_good_results = False
+                    for key, value in result.items():
+                        if not key.startswith('rejected_') and value is not None:
+                            has_good_results = True
+                            break
+                    
+                    if has_good_results:
+                        processed_successfully = True
+                        logger.info(f"Successfully processed at least one region in {image.source_path.name}")
+                
+                # If we have a processed directory, move the original file there after processing
+                if self.processed_path and processed_successfully:
+                    dest_path = self.processed_path / image.source_path.name
+                    logger.info(f"Moving processed file to: {dest_path}")
+                    image.source_path.rename(dest_path)
+                
             except Exception as e:
                 logger.error(f"Failed to process image {image.source_path}", exc_info=True)
-                raise
+                # Continue with next image instead of failing the whole batch
+                continue

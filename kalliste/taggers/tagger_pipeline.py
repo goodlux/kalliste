@@ -200,7 +200,7 @@ class TaggerPipeline:
             # Add assessments
             if 'technical_assessment' in nima_results:
                 region.add_tag(KallisteStringTag(
-                    "KallisteNimaAssessmentTechnial",
+                    "KallisteNimaAssessmentTechnical",
                     nima_results['technical_assessment'][0].label
                 ))
                 
@@ -215,7 +215,7 @@ class TaggerPipeline:
                 for calc in nima_results['overall_calculations']:
                     if calc.category == 'calc_average':
                         region.add_tag(KallisteRealTag(
-                            "KallisteNimaCalcAverage",
+                            "KallisteNimaScoreCalcAverage",
                             calc.confidence
                         )
                     )
