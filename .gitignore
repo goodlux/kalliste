@@ -1,24 +1,70 @@
-# test image directories
+# Test image directories
 test_images_input/
 test_images_output/
 test_images_storage/
 
+# Environment and config
 .env
+.env.local
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# macOS
 .DS_Store
 
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # Model files
 *.pt
+*.pth
+*.onnx
 
 # Logs
 *.log
+logs/
+chroma.log
 
-# Virtual Environment
+# Virtual environments
 .venv/
 venv/
+env/
+.conda/
 
+# uv
+.uv_cache/
+
+# Legacy setup files (to be removed)
+setup.py
+requirements.txt
+kalliste.egg-info/
+
+# Project specific
 exiftest/
-
 volumes/
+kalliste_db/
+milvus_setup/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+.tmp/

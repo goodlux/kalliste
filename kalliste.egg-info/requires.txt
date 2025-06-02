@@ -1,4 +1,0 @@
-ultralytics==8.3.51
-opencv-python-headless
-pillow
-numpy

@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: kalliste
-Version: 0.1
-Requires-Dist: ultralytics==8.3.51
-Requires-Dist: opencv-python-headless
-Requires-Dist: pillow
-Requires-Dist: numpy
