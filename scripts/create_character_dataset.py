@@ -2,12 +2,11 @@
 """
 Create training dataset for a specific person (character LoRA).
 - Copies ALL photographs for the person
-- Selects BEST video stills using clustering for diversity + NIMA technical score for quality
+- Uses clustering-first approach: clusters ALL video stills for diversity, then selects best technical score from each cluster
 - Copies both image files and sidecar .txt files
 
 Usage:
     python create_character_dataset.py --person NaGiLux --video-count 5000
-    python create_character_dataset.py --person NaGiLux --video-count 5000 --no-clustering
     python create_character_dataset.py --person NaGiLux --video-count 3000 --min-technical 0.50 --dry-run
 """
 import sys
@@ -50,163 +49,89 @@ def get_all_photos_for_person(db: MilvusDB, person_name: str) -> List[Dict[str, 
     return results
 
 def get_best_video_stills_for_person(db: MilvusDB, person_name: str, count: int, 
-                                    use_clustering: bool = True, min_technical_score: float = 0.45) -> List[Dict[str, Any]]:
-    """Get the best video stills for a specific person.
-    
-    Uses a two-phase approach to avoid Milvus query size limits:
-    1. Get top candidates by technical score (without embeddings)
-    2. Get embeddings for selected candidates and cluster
-    """
+                                    min_technical_score: float = 0.45) -> List[Dict[str, Any]]:
+    """Get the best video stills using clustering-first approach for maximum diversity."""
     
     filter_expr = f'person_name == "{person_name}" && source_type == "video"'
     if min_technical_score > 0:
         filter_expr += f' && nima_score_technical >= {min_technical_score}'
     
-    logger.info(f"Selecting video stills for {person_name} (min technical score: {min_technical_score})")
+    logger.info(f"Using clustering-first approach for {person_name} (min technical score: {min_technical_score})")
     
-    if not use_clustering:
-        # Simple approach: just take top by technical score
-        logger.info("Using simple technical score ranking (no clustering)")
-        
-        output_fields = [
-            "id", "image_file_path", "nima_score_technical", "nima_score_aesthetic", 
-            "nima_score_calc_average", "person_name", "photoshoot"
-        ]
-        
-        # Get all results and sort by technical score
-        all_results = db.query(
-            filter_expr=filter_expr,
-            output_fields=output_fields
-        )
-        
-        logger.info(f"Found {len(all_results)} video stills above threshold")
-        
-        if not all_results:
-            return []
-        
-        # Sort by technical score and take top count
-        sorted_results = sorted(
-            all_results,
-            key=lambda x: x.get('nima_score_technical', 0.0),
-            reverse=True
-        )
-        
-        best_results = sorted_results[:count]
-        
-        if best_results:
-            tech_scores = [r.get('nima_score_technical', 0.0) for r in best_results]
-            logger.info(f"Selected {len(best_results)} videos by technical score")
-            logger.info(f"NIMA technical score range: {min(tech_scores):.3f} - {max(tech_scores):.3f}")
-        
-        return best_results
+    # Get ALL video stills with embeddings using query_iterator
+    all_videos = get_all_videos_with_iterator(db, filter_expr)
     
-    else:
-        # Clustering approach - two-phase to avoid size limits
-        logger.info("Using clustering for diversity")
-        
-        # Phase 1: Get more candidates than we need (without embeddings)
-        # Use 3x the target count to have good candidates for clustering
-        candidate_count = min(count * 3, 50000)  # Cap at 50k to avoid other issues
-        
-        logger.info(f"Phase 1: Getting top {candidate_count} candidates by technical score")
-        
-        output_fields_phase1 = [
-            "id", "image_file_path", "nima_score_technical", "nima_score_aesthetic", 
-            "nima_score_calc_average", "person_name", "photoshoot"
-        ]
-        
-        # Get all candidates and sort by technical score
-        all_candidates = db.query(
-            filter_expr=filter_expr,
-            output_fields=output_fields_phase1
-        )
-        
-        logger.info(f"Found {len(all_candidates)} total video stills above threshold")
-        
-        if not all_candidates:
-            return []
-        
-        # Sort by technical score and take top candidates
-        sorted_candidates = sorted(
-            all_candidates,
-            key=lambda x: x.get('nima_score_technical', 0.0),
-            reverse=True
-        )
-        
-        top_candidates = sorted_candidates[:candidate_count]
-        logger.info(f"Selected top {len(top_candidates)} candidates for clustering")
-        
-        # Phase 2: Get embeddings for selected candidates in batches
-        logger.info(f"Phase 2: Getting embeddings and clustering into {count} groups")
-        
-        candidates_with_embeddings = get_embeddings_for_candidates(db, top_candidates)
-        
-        if not candidates_with_embeddings:
-            logger.warning("No candidates have embeddings, falling back to simple selection")
-            return top_candidates[:count]
-        
-        # Cluster and select diverse videos
-        return cluster_and_select_diverse_videos(candidates_with_embeddings, count)
+    if not all_videos:
+        raise ValueError("No videos found with embeddings")
+    
+    logger.info(f"Retrieved {len(all_videos)} videos with embeddings")
+    
+    # Cluster and select diverse videos
+    return cluster_and_select_diverse_videos(all_videos, count)
 
-def get_embeddings_for_candidates(db: MilvusDB, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Get embeddings for a list of candidate videos in batches."""
+def get_all_videos_with_iterator(db: MilvusDB, filter_expr: str) -> List[Dict[str, Any]]:
+    """Get ALL videos with embeddings using Milvus query_iterator."""
     
-    batch_size = 1000  # Process in smaller batches
-    candidates_with_embeddings = []
+    from pymilvus import Collection, connections
     
-    for i in range(0, len(candidates), batch_size):
-        batch = candidates[i:i + batch_size]
-        batch_ids = [str(c['id']) for c in batch]
-        
-        logger.info(f"Getting embeddings for batch {i//batch_size + 1}/{(len(candidates) + batch_size - 1)//batch_size}")
-        
-        try:
-            # Query by ID to get embeddings
-            id_filter = f"id in {batch_ids}"
-            
-            embedding_results = db.query(
-                filter_expr=id_filter,
-                output_fields=["id", "openclip_vector"]
-            )
-            
-            # Merge embedding data with candidate data
-            embedding_dict = {r['id']: r.get('openclip_vector') for r in embedding_results}
-            
-            for candidate in batch:
-                candidate_id = candidate['id']
-                embedding = embedding_dict.get(candidate_id)
-                
-                if embedding and len(embedding) > 0:
-                    candidate['openclip_vector'] = embedding
-                    candidates_with_embeddings.append(candidate)
-                else:
-                    logger.debug(f"No embedding found for candidate {candidate_id}")
-                    
-        except Exception as e:
-            logger.error(f"Error getting embeddings for batch: {e}")
-            # Skip this batch and continue
-            continue
+    # Connect to Milvus
+    connections.connect(uri="http://localhost:19530")
+    collection = Collection(db.collection_name)
     
-    logger.info(f"Successfully got embeddings for {len(candidates_with_embeddings)}/{len(candidates)} candidates")
-    return candidates_with_embeddings
-
-def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], target_count: int) -> List[Dict[str, Any]]:
-    """Cluster video frames for diversity and select best technical score from each cluster."""
+    output_fields = [
+        "id", "image_file_path", "nima_score_technical", "nima_score_aesthetic", 
+        "nima_score_calc_average", "person_name", "photoshoot", "openclip_vector"
+    ]
+    
+    logger.info("Getting ALL videos with embeddings using query_iterator")
+    
+    # Create query iterator with batch processing
+    batch_size = 1000
+    iterator = collection.query_iterator(
+        batch_size=batch_size,
+        expr=filter_expr,
+        output_fields=output_fields
+    )
+    
+    all_results = []
+    batch_count = 0
     
     try:
-        from sklearn.cluster import KMeans
-        from sklearn.preprocessing import StandardScaler
-        import numpy as np
-    except ImportError:
-        logger.error("sklearn required for clustering. Install with: pip install scikit-learn")
-        logger.info("Falling back to simple technical score selection")
-        # Fallback to simple sorting
-        sorted_results = sorted(
-            video_results,
-            key=lambda x: x.get('nima_score_technical', 0.0),
-            reverse=True
-        )
-        return sorted_results[:target_count]
+        while True:
+            batch_results = iterator.next()
+            if not batch_results:
+                break
+                
+            batch_count += 1
+            batch_with_embeddings = 0
+            
+            # Filter for records that have embeddings
+            for result in batch_results:
+                embedding = result.get('openclip_vector')
+                if embedding and len(embedding) > 0:
+                    all_results.append(result)
+                    batch_with_embeddings += 1
+            
+            logger.info(f"Batch {batch_count}: {len(batch_results)} records, {batch_with_embeddings} with embeddings")
+            
+            # Progress update every 10 batches
+            if batch_count % 10 == 0:
+                logger.info(f"Progress: {len(all_results)} total videos collected so far...")
+    
+    finally:
+        iterator.close()
+        connections.disconnect("default")
+    
+    logger.info(f"Completed: collected {len(all_results)} videos with embeddings in {batch_count} batches")
+    return all_results
+
+def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], target_count: int) -> List[Dict[str, Any]]:
+    """Cluster ALL video frames for diversity and select best technical score from each cluster."""
+    
+    # Import required libraries
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+    import numpy as np
     
     if len(video_results) <= target_count:
         logger.info(f"Only {len(video_results)} videos available, returning all")
@@ -214,19 +139,17 @@ def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], targe
     
     # Extract embeddings
     embeddings = []
-    valid_indices = []
+    valid_videos = []
     
-    for i, result in enumerate(video_results):
+    for result in video_results:
         embedding = result.get('openclip_vector')
         if embedding and len(embedding) > 0:
             embeddings.append(embedding)
-            valid_indices.append(i)
-        else:
-            logger.warning(f"Skipping video {i} - missing embedding")
+            valid_videos.append(result)
     
     if len(embeddings) < target_count:
-        logger.warning(f"Only {len(embeddings)} videos have embeddings")
-        return [video_results[i] for i in valid_indices]
+        logger.warning(f"Only {len(embeddings)} videos have embeddings, returning all")
+        return valid_videos
     
     logger.info(f"Clustering {len(embeddings)} embeddings into {target_count} clusters")
     
@@ -236,12 +159,15 @@ def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], targe
     embeddings_normalized = scaler.fit_transform(embeddings_array)
     
     # Perform K-means clustering
-    kmeans = KMeans(n_clusters=target_count, random_state=42, n_init=10)
+    logger.info("Running K-means clustering...")
+    kmeans = KMeans(n_clusters=target_count, random_state=42, n_init=3)
     cluster_labels = kmeans.fit_predict(embeddings_normalized)
     
     # Select best video from each cluster based on technical score
     selected_videos = []
     cluster_stats = []
+    
+    logger.info("Selecting best video from each cluster...")
     
     for cluster_id in range(target_count):
         # Get videos in this cluster
@@ -249,10 +175,11 @@ def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], targe
         cluster_indices = np.where(cluster_mask)[0]
         
         if len(cluster_indices) == 0:
+            logger.warning(f"Cluster {cluster_id} is empty")
             continue
             
         # Get the actual video results for this cluster
-        cluster_videos = [video_results[valid_indices[i]] for i in cluster_indices]
+        cluster_videos = [valid_videos[i] for i in cluster_indices]
         
         # Sort by technical score and take the best
         cluster_videos.sort(key=lambda x: x.get('nima_score_technical', 0.0), reverse=True)
@@ -269,13 +196,13 @@ def cluster_and_select_diverse_videos(video_results: List[Dict[str, Any]], targe
     
     logger.info(f"Successfully selected {len(selected_videos)} diverse videos from {target_count} clusters")
     
-    # Log some cluster statistics
+    # Log cluster statistics
     if cluster_stats:
         cluster_sizes = [s['size'] for s in cluster_stats]
-        logger.info(f"Cluster sizes: min={min(cluster_sizes)}, max={max(cluster_sizes)}, avg={sum(cluster_sizes)/len(cluster_sizes):.1f}")
-        
         tech_scores = [s['best_technical'] for s in cluster_stats]
-        logger.info(f"Selected technical scores: {min(tech_scores):.3f} - {max(tech_scores):.3f}")
+        
+        logger.info(f"Cluster sizes: min={min(cluster_sizes)}, max={max(cluster_sizes)}, avg={sum(cluster_sizes)/len(cluster_sizes):.1f}")
+        logger.info(f"Selected technical scores: {min(tech_scores):.3f} - {max(tech_scores):.3f}, avg={sum(tech_scores)/len(tech_scores):.3f}")
     
     return selected_videos
 
@@ -363,7 +290,7 @@ def copy_images_and_sidecars(results: List[Dict[str, Any]], destination_dir: str
     return images_copied, sidecars_copied
 
 def create_dataset_summary(person_name: str, photo_results: List[Dict], video_results: List[Dict], 
-                         output_base_dir: str, images_stats: Dict, clustering_used: bool = True, 
+                         output_base_dir: str, images_stats: Dict, 
                          min_technical_score: float = 0.45, dry_run: bool = False):
     """Create a summary file for the dataset."""
     
@@ -375,12 +302,12 @@ def create_dataset_summary(person_name: str, photo_results: List[Dict], video_re
     with open(summary_path, 'w') as f:
         f.write(f"Character Dataset: {person_name}\\n")
         f.write(f"Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
-        f.write(f"Selection method: {'Clustering + Quality' if clustering_used else 'Quality Only'}\\n")
+        f.write(f"Selection method: Clustering-First (ALL videos clustered for maximum diversity)\\n")
         f.write(f"Min technical score threshold: {min_technical_score}\\n")
         f.write("="*50 + "\\n\\n")
         
         # Photo summary
-        f.write(f"PHOTOGRAPHS: {len(photo_results)} images\\n")
+        f.write(f"PHOTOGRAPHS: {len(photo_results)} images (all available)\\n")
         if photo_results:
             photo_nima_scores = [r.get('nima_score_technical', 0) for r in photo_results]
             f.write(f"  NIMA Technical Score Range: {min(photo_nima_scores):.3f} - {max(photo_nima_scores):.3f}\\n")
@@ -388,8 +315,7 @@ def create_dataset_summary(person_name: str, photo_results: List[Dict], video_re
         f.write(f"  Files copied: {images_stats['photos_copied']} images, {images_stats['photo_sidecars']} sidecars\\n\\n")
         
         # Video summary
-        selection_method = "clustered for diversity" if clustering_used else "ranked by technical score"
-        f.write(f"VIDEO STILLS: {len(video_results)} images ({selection_method})\\n")
+        f.write(f"VIDEO STILLS: {len(video_results)} images (clustered ALL videos into {len(video_results)} diverse groups, best quality from each)\\n")
         if video_results:
             video_nima_scores = [r.get('nima_score_technical', 0) for r in video_results]
             f.write(f"  NIMA Technical Score Range: {min(video_nima_scores):.3f} - {max(video_nima_scores):.3f}\\n")
@@ -404,14 +330,12 @@ def create_dataset_summary(person_name: str, photo_results: List[Dict], video_re
     logger.info(f"Dataset summary saved to: {summary_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Create character training dataset with clustering")
+    parser = argparse.ArgumentParser(description="Create character training dataset with clustering-first approach")
     parser.add_argument("--person", required=True, help="Person identifier (e.g., NaGiLux)")
     parser.add_argument("--video-count", type=int, default=5000, 
                         help="Number of video stills to select")
     parser.add_argument("--min-technical", type=float, default=0.45,
                         help="Minimum NIMA technical score threshold for video stills")
-    parser.add_argument("--no-clustering", action="store_true",
-                        help="Disable clustering - just take top videos by technical score")
     parser.add_argument("--output-base", default="/Volumes/m01/kalliste_data/datasets",
                         help="Base output directory")
     parser.add_argument("--dry-run", action="store_true",
@@ -424,14 +348,12 @@ def main():
     photo_dir = os.path.join(person_dir, "photo")
     video_dir = os.path.join(person_dir, "video")
     
-    use_clustering = not args.no_clustering
-    
     logger.info(f"=== CREATING CHARACTER DATASET FOR {args.person} ===")
     logger.info(f"Photo destination: {photo_dir}")
     logger.info(f"Video destination: {video_dir}")
     logger.info(f"Target video stills: {args.video_count}")
     logger.info(f"Min technical score: {args.min_technical}")
-    logger.info(f"Using clustering: {use_clustering}")
+    logger.info(f"Method: Clustering-First (max diversity from ALL videos)")
     
     if args.dry_run:
         logger.info("DRY RUN MODE - No files will be copied")
@@ -447,14 +369,13 @@ def main():
         
         photo_results = get_all_photos_for_person(db, args.person)
         
-        # Get best video stills
+        # Get best video stills using clustering
         logger.info("\\n" + "="*50)
-        logger.info("STEP 2: Selecting best video stills")
+        logger.info("STEP 2: Clustering ALL videos for diversity")
         logger.info("="*50)
         
         video_results = get_best_video_stills_for_person(
             db, args.person, args.video_count, 
-            use_clustering=use_clustering,
             min_technical_score=args.min_technical
         )
         
@@ -485,7 +406,7 @@ def main():
         }
         
         create_dataset_summary(args.person, photo_results, video_results, 
-                             person_dir, images_stats, use_clustering, 
+                             person_dir, images_stats, 
                              args.min_technical, args.dry_run)
         
         # Final summary
