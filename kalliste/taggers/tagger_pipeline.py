@@ -58,20 +58,26 @@ class TaggerPipeline:
     def _ensure_tagger_initialized(self, tagger_name: str) -> None:
         """Initialize a specific tagger if not already initialized."""
         if tagger_name not in self.taggers:
+            logger.info(f"🆕 Tagger '{tagger_name}' not in cache, initializing...")
+            
             if tagger_name not in self.TAGGER_CLASSES:
                 raise ValueError(f"Unsupported tagger: {tagger_name}")
                 
             try:
                 # Get tagger-specific config if it exists
                 tagger_config = self.config.get('tagger', {}).get(tagger_name, {})
+                logger.debug(f"🔧 Initializing {tagger_name} with config: {tagger_config}")
                 
                 # Initialize tagger with config
                 tagger_class = self.TAGGER_CLASSES[tagger_name]
                 self.taggers[tagger_name] = tagger_class(config=tagger_config)
+                logger.info(f"✅ Successfully initialized {tagger_name} tagger")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize {tagger_name} tagger: {e}", exc_info=True)
                 raise RuntimeError(f"Tagger initialization failed: {e}")
+        else:
+            logger.debug(f"♾️ Tagger '{tagger_name}' already initialized, reusing cached instance")
 
     def _process_orientation_results(self, region: Region, orientation_results: List[TagResult]) -> None:
         """Process orientation results and add them to region's kalliste_tags."""

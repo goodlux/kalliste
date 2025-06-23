@@ -109,11 +109,6 @@ class CroppedImage:
                     region=self.region
                 )
                 
-                # Log all tags after processing
-                logger.info("Final kalliste_tags:")
-                for tag_name, tag_values in self.region.kalliste_tags.items():
-                    logger.info(f"  {tag_name}: {tag_values}")
-                
                 logger.info("Resizing to SDXL")
                 sdxl_image = RegionDownsizer.downsize_to_sdxl(cropped)
                 logger.info(f"Final SDXL dimensions: {sdxl_image.width}x{sdxl_image.height}")

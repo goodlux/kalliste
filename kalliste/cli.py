@@ -2,6 +2,9 @@
 """
 Kalliste CLI - Simple command line interface for the image processing pipeline.
 """
+# TEMPORARY DEBUG IMPORT - Remove after fixing ViT-B-32 loading issue
+from kalliste.utils.debug_vit_loading import *
+
 import asyncio
 import click
 import logging

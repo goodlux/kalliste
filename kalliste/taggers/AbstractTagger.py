@@ -19,6 +19,8 @@ class AbstractTagger(ABC):
             model_id: ID of the model in ModelRegistry to use for tagging
             config: Optional configuration overrides for this tagger.
         """
+        logger.info(f"🏁 Initializing {self.__class__.__name__} with model_id: {model_id}")
+        
         # Get model and processor from registry
         model_info = ModelRegistry.get_model(model_id)
         self.model = model_info["model"]
@@ -34,6 +36,8 @@ class AbstractTagger(ABC):
             for key in self.config.keys():
                 if key in config:
                     self.config[key] = config[key]
+                    
+        logger.info(f"✅ {self.__class__.__name__} initialized successfully with config: {self.config}")
 
     @classmethod
     @abstractmethod

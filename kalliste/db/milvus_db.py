@@ -91,9 +91,6 @@ class MilvusDB:
         Insert a single image with KallisteTags into Milvus.
         Now includes both DINOv2 and OpenCLIP embeddings.
         """
-
-        logger.info(kalliste_tags)
-
         try:
 
             # Generate embeddings

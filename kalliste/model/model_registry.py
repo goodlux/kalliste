@@ -38,9 +38,14 @@ class ModelRegistry:
     @classmethod
     async def initialize(cls) -> None:
         """Initialize the model registry and download all required models."""
+        logger.info("🚀 ModelRegistry.initialize() called")
+        
         async with cls._lock:
             if cls._initialized:
+                logger.info("♾️ ModelRegistry already initialized, skipping")
                 return
+                
+            logger.info("🆕 ModelRegistry not initialized, starting initialization process...")
                 
             try:
                 # Determine device once
@@ -72,7 +77,8 @@ class ModelRegistry:
                 await cls._initialize_embedding_models()        # Embedding models
 
                 cls._initialized = True
-                logger.info("Model registry initialization complete")
+                logger.info("🎉 Model registry initialization complete!")
+                logger.info(f"📦 Loaded models: {list(cls._models.keys())}")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize model registry: {e}")
@@ -285,7 +291,7 @@ class ModelRegistry:
                     model_config['hf_path'],
                     torch_dtype=torch.float16 if cls.device == "cuda" else torch.float32,
                 ).to(cls.device)
-                processor = Blip2Processor.from_pretrained(model_config['hf_path'])
+                processor = Blip2Processor.from_pretrained(model_config['hf_path'], use_fast=True)
                 model.eval()
                 
                 cls._models[model_config["model_id"]] = {
@@ -329,9 +335,14 @@ class ModelRegistry:
     @classmethod
     async def _initialize_embedding_models(cls) -> None:
         """Initialize DINOv2 and OpenCLIP embedding models."""
+        logger.info("🌍 Starting embedding models initialization...")
+        
         import torch
         from transformers import AutoImageProcessor, AutoModel
+        
+        logger.info("📦 Importing open_clip library...")
         from open_clip import create_model_and_transforms, create_model_from_pretrained
+        logger.info("✅ open_clip imported successfully")
         
         try:
             # Initialize DINOv2
@@ -349,10 +360,12 @@ class ModelRegistry:
             
             # Initialize OpenCLIP - using create_model_from_pretrained instead
             openclip_config = MODELS["embeddings"]["openclip"]
+            logger.info("🌐 Starting OpenCLIP model initialization...")
             model, _, preprocess = create_model_and_transforms(
                 'ViT-L-14',
                 pretrained='laion2b_s32b_b82k'
             )
+            logger.info("📡 OpenCLIP model loaded, moving to device...")
             model = model.to(cls.device)
             model.eval()
             
@@ -372,13 +385,18 @@ class ModelRegistry:
     @classmethod
     def get_model(cls, model_id: str) -> Dict[str, Any]:
         """Get an initialized model by its ID."""
+        logger.info(f"🔍 ModelRegistry.get_model called for: {model_id}")
+        
         if not cls._initialized:
+            logger.error(f"❌ Models not initialized when requesting {model_id}")
             raise RuntimeError("Models not initialized. Call initialize() first.")
             
         model_info = cls._models.get(model_id)
         if model_info is None:
+            logger.error(f"❌ Model {model_id} not found in registry. Available models: {list(cls._models.keys())}")
             raise KeyError(f"Model {model_id} not found in registry")
             
+        logger.info(f"✅ Retrieved model {model_id} from registry (type: {model_info.get('type', 'unknown')})")
         return model_info
 
     @classmethod
