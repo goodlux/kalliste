@@ -218,6 +218,8 @@ class OriginalImage:
         Process the image 
         """
         try:
+            # Log which image we're processing
+            logger.info(f"🖼️  Processing: {self.source_path.name}")
             
             # Get all Lightroom metadata in one call
             general_metadata, lr_faces, lr_tags = await self._extract_lr_metadata()
@@ -314,11 +316,26 @@ class OriginalImage:
                 region_result = await cropped.process()
                 results_summary["region_results"].append(region_result)
                 
-                # Check if this was a successful region
-                if region_result and isinstance(region_result, dict) and region_result.get("success") == True:
-                    results_summary["successful_regions"] += 1
+                # Check if this was a successful region and log result
+                if region_result and isinstance(region_result, dict):
+                    if region_result.get("success") == True:
+                        results_summary["successful_regions"] += 1
+                        logger.info(f"  ✅ {region_type} #{results_summary['total_regions']}: ACCEPTED - Saved to disk")
+                    elif region_result.get("rejected_low_nima"):
+                        logger.info(f"  🚫 {region_type} #{results_summary['total_regions']}: REJECTED - Low NIMA scores (Tech: {region_result.get('technical', 'N/A')}, Aes: {region_result.get('aesthetic', 'N/A')}, Overall: {region_result.get('overall', 'N/A')})")
+                    elif region_result.get("rejected_expansion_failed"):
+                        logger.info(f"  ⚠️  {region_type} #{results_summary['total_regions']}: REJECTED - Could not expand to SDXL ratio")
+                    elif region_result.get("rejected_small"):
+                        logger.info(f"  📐 {region_type} #{results_summary['total_regions']}: REJECTED - Too small for SDXL")
+                    else:
+                        logger.info(f"  ❓ {region_type} #{results_summary['total_regions']}: Unknown result")
             
-            logger.info(f"Successfully processed {results_summary['successful_regions']} out of {results_summary['total_regions']} regions")
+            # Final summary with emojis
+            if results_summary["successful_regions"] > 0:
+                logger.info(f"✨ Image complete: {results_summary['successful_regions']}/{results_summary['total_regions']} regions accepted and saved")
+            else:
+                logger.info(f"💭 Image complete: No regions saved (0/{results_summary['total_regions']} accepted)")
+            
             return results_summary
                     
         except Exception as e:

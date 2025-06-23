@@ -125,6 +125,49 @@ class CroppedImage:
                     assessment
                 ))
                 
+                # ============================================================
+                # CRITICAL QUALITY GATE: Only save images that pass assessment
+                # ============================================================
+                if assessment == "reject":
+                    """
+                    🚫 IMAGE REJECTED! 🚫
+                    
+                    This image failed the NIMA quality assessment and will NOT be:
+                    - Saved to disk
+                    - Added to Milvus vector database
+                    - Used for training
+                    
+                    Rejection criteria:
+                    - Technical quality is NOT "high_quality" AND
+                    - Overall assessment is NOT "acceptable"
+                    
+                    This saves disk space and ensures only quality images are used for training.
+                    """
+                    logger.info(f"🚫 REJECTING image due to low NIMA scores")
+                    
+                    # Extract scores for logging
+                    tech_tag = self.region.kalliste_tags.get("KallisteNimaAssessmentTechnical")
+                    aes_tag = self.region.kalliste_tags.get("KallisteNimaAssessmentAesthetic")
+                    overall_tag = self.region.kalliste_tags.get("KallisteNimaAssessmentOverall")
+                    
+                    logger.info(f"  Technical: {tech_tag.value if tech_tag else 'N/A'}")
+                    logger.info(f"  Aesthetic: {aes_tag.value if aes_tag else 'N/A'}")
+                    logger.info(f"  Overall: {overall_tag.value if overall_tag else 'N/A'}")
+                    
+                    return {
+                        "success": False,
+                        "rejected_low_nima": True,
+                        "assessment": assessment,
+                        "technical": tech_tag.value if tech_tag else None,
+                        "aesthetic": aes_tag.value if aes_tag else None,
+                        "overall": overall_tag.value if overall_tag else None,
+                    }
+                
+                # ============================================================
+                # IMAGE ACCEPTED! Proceed with saving
+                # ============================================================
+                logger.info(f"✅ ACCEPTING image - assessment: {assessment}")
+                
                 # Save the image to the output directory
                 logger.info(f"Saving image to output directory")
                 output_filename = f"{self.source_path.stem}_{self.region.region_type}_{uuid.uuid4()}.png"
@@ -182,29 +225,47 @@ class CroppedImage:
 
     def _determine_kalliste_assessment(self, region: Region) -> str:
         """
-        Determine if an image should be accepted or rejected based on NIMA assessments.
-        Accepts if either:
-        1. NIMA overall assessment is "acceptable" OR
-        2. Technical quality is "high_quality" (overrides overall assessment)
+        🎯 KALLISTE QUALITY ASSESSMENT LOGIC 🎯
+        
+        Determines if an image should be accepted or rejected based on NIMA assessments.
+        
+        ACCEPTS if EITHER:
+        1. NIMA technical assessment is "high_quality" (technical excellence overrides all) OR
+        2. NIMA overall assessment is "acceptable" (balanced quality is good enough)
+        
+        REJECTS if BOTH:
+        1. Technical quality is NOT "high_quality" AND
+        2. Overall assessment is NOT "acceptable"
+        
+        This ensures we keep:
+        - Technically excellent images (sharp, well-exposed, low noise)
+        - Images with acceptable overall quality (decent technical + aesthetic balance)
+        
+        While rejecting:
+        - Images that are neither technically excellent nor acceptable overall
         
         Returns:
             str: "accept" or "reject"
         """
         try:
-            # Get technical quality assessment
-            tech_assessment = region.kalliste_tags.get("KallisteNimaTechnicalAssessment")
+            # FIXED: Use correct tag names that match what's actually set in tagger_pipeline
+            # Was: KallisteNimaTechnicalAssessment (WRONG)
+            # Now: KallisteNimaAssessmentTechnical (CORRECT)
+            tech_assessment = region.kalliste_tags.get("KallisteNimaAssessmentTechnical")
             if tech_assessment and tech_assessment.value == "high_quality":
-                logger.info("Accepting image due to high technical quality")
+                logger.info("✅ Accepting image due to high technical quality")
                 return "accept"
             
-            # Otherwise check overall assessment
-            nima_overall = region.kalliste_tags.get("KallisteNimaOverallAssessment")
+            # FIXED: Use correct tag name here too
+            # Was: KallisteNimaOverallAssessment (WRONG) 
+            # Now: KallisteNimaAssessmentOverall (CORRECT)
+            nima_overall = region.kalliste_tags.get("KallisteNimaAssessmentOverall")
             if nima_overall and nima_overall.value == "acceptable":
-                logger.info("Accepting image due to acceptable overall assessment")
+                logger.info("✅ Accepting image due to acceptable overall assessment")
                 return "accept"
             
             # If neither condition is met, reject
-            logger.info("Rejecting image: neither technically excellent nor acceptable overall")
+            logger.info("🚫 Rejecting image: neither technically excellent nor acceptable overall")
             return "reject"
                     
         except Exception as e:

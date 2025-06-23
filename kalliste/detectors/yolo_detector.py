@@ -42,11 +42,13 @@ class YOLODetector(BaseDetector):
         
         try:
             # Run inference with Ultralytics YOLO model
+            # Set verbose=False to suppress the "Processing images..." output
             pred = self.model(
                 str(image_path),
                 conf=confidence_threshold,
                 iou=nms_threshold,
-                classes=classes
+                classes=classes,
+                verbose=False  # Suppress YOLO's output
             )[0]
             
             # Convert predictions to Region objects

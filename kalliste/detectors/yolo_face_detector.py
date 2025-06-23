@@ -34,7 +34,8 @@ class YOLOFaceDetector(BaseDetector):
             pred = self.model(
                 str(image_path),
                 conf=confidence_threshold,
-                iou=nms_threshold
+                iou=nms_threshold,
+                verbose=False  # Suppress YOLO's output
             )[0]
             
             # Convert predictions to Region objects
