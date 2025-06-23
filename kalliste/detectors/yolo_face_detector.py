@@ -19,8 +19,21 @@ class YOLOFaceDetector(BaseDetector):
     def __init__(self, config: Dict):
         """Initialize YOLO face detector with config."""
         super().__init__(config)
-        self.model = ModelRegistry.get_model("yolo-face")["model"]
+        model_info = ModelRegistry.get_model("yolo-face")
+        self.model = model_info["model"]
         self.model.eval()
+        
+        # Debug: Check if model has CLIP-related attributes
+        logger.debug(f"🔍 Inspecting YOLO face model attributes...")
+        for attr in dir(self.model):
+            if 'clip' in attr.lower() or 'vit' in attr.lower():
+                logger.debug(f"   Found potential CLIP attribute: {attr}")
+        
+        # Check if model has any submodules
+        if hasattr(self.model, 'model'):
+            logger.debug(f"   Model has nested 'model' attribute")
+            if hasattr(self.model.model, 'names'):
+                logger.debug(f"   Model names: {getattr(self.model.model, 'names', {})}")
     
     def detect(self, 
               image_path: Path,
@@ -30,6 +43,10 @@ class YOLOFaceDetector(BaseDetector):
         self._validate_image_path(image_path)
         
         try:
+            logger.debug(f"🔍 Running YOLO face detection on {image_path.name}")
+            logger.debug(f"   Model type: {type(self.model)}")
+            logger.debug(f"   Model device: {getattr(self.model, 'device', 'unknown')}")
+            
             # Run inference with face detection model
             pred = self.model(
                 str(image_path),
@@ -37,6 +54,8 @@ class YOLOFaceDetector(BaseDetector):
                 iou=nms_threshold,
                 verbose=False  # Suppress YOLO's output
             )[0]
+            
+            logger.debug(f"✅ YOLO face detection completed, found {len(pred.boxes)} faces")
             
             # Convert predictions to Region objects
             regions = []

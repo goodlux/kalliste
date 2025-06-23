@@ -228,11 +228,16 @@ class OriginalImage:
             logger.debug(f"Extracted tags: {lr_tags}")
 
             # Pass relevant config to detection pipeline
+            logger.debug("🔍 About to create DetectionPipeline")
             detection_pipeline = DetectionPipeline()
+            logger.debug("✅ DetectionPipeline created")
+            
+            logger.debug("🔍 About to call detection_pipeline.detect")
             results = detection_pipeline.detect(
                 self.source_path,
                 config=self.config['detector']
             )
+            logger.debug("✅ detection_pipeline.detect completed")
             
             logger.debug(f"About to match regions. Have lr_faces: {lr_faces}")
             # If we have LR faces, try to match them

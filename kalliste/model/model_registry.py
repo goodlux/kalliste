@@ -334,31 +334,18 @@ class ModelRegistry:
 
     @classmethod
     async def _initialize_embedding_models(cls) -> None:
-        """Initialize DINOv2 and OpenCLIP embedding models."""
+        """Initialize OpenCLIP embedding model only (DINOv2 removed as unused)."""
         logger.info("🌍 Starting embedding models initialization...")
         
         import torch
-        from transformers import AutoImageProcessor, AutoModel
         
         logger.info("📦 Importing open_clip library...")
         from open_clip import create_model_and_transforms, create_model_from_pretrained
         logger.info("✅ open_clip imported successfully")
         
         try:
-            # Initialize DINOv2
-            dinov2_config = MODELS["embeddings"]["dinov2"]
-            dinov2_model = AutoModel.from_pretrained(dinov2_config['hf_path']).to(cls.device)
-            dinov2_processor = AutoImageProcessor.from_pretrained(dinov2_config['hf_path'])
-            dinov2_model.eval()
-            
-            cls._models[dinov2_config["model_id"]] = {
-                "model": dinov2_model,
-                "processor": dinov2_processor,
-                "type": "embedding"
-            }
-            logger.info("Initialized DINOv2 embedding model")
-            
-            # Initialize OpenCLIP - using create_model_from_pretrained instead
+            # Skip DINOv2 - not currently used
+            # Only initialize OpenCLIP
             openclip_config = MODELS["embeddings"]["openclip"]
             logger.info("🌐 Starting OpenCLIP model initialization...")
             model, _, preprocess = create_model_and_transforms(

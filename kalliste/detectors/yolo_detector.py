@@ -19,8 +19,15 @@ class YOLODetector(BaseDetector):
     def __init__(self, config: Dict):
         """Initialize YOLO detector with config."""
         super().__init__(config)
-        self.model = ModelRegistry.get_model("yolo")["model"]
+        model_info = ModelRegistry.get_model("yolo")
+        self.model = model_info["model"]
         self.model.eval()
+        
+        # Debug: Check if model has CLIP-related attributes
+        logger.debug(f"🔍 Inspecting regular YOLO model attributes...")
+        for attr in dir(self.model):
+            if 'clip' in attr.lower() or 'vit' in attr.lower():
+                logger.debug(f"   Found potential CLIP attribute: {attr}")
     
     def detect(self, 
               image_path: Path,

@@ -54,20 +54,21 @@ class ModelDownloadManager:
             "*.h5",
         ]
         
-        for name, config in MODELS["embeddings"].items():
-            logger.info(f"Checking/downloading {name} from HuggingFace")
-            
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: snapshot_download(
-                    repo_id=config["hf_path"],
-                    cache_dir=HF_CACHE_DIR,
-                    ignore_patterns=exclude_patterns,
-                    local_files_only=False,
-                    resume_download=True
-                )
+        # Only download OpenCLIP, skip DINOv2 as it's not used
+        openclip_config = MODELS["embeddings"]["openclip"]
+        logger.info(f"Checking/downloading OpenCLIP from HuggingFace")
+        
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: snapshot_download(
+                repo_id=openclip_config["hf_path"],
+                cache_dir=HF_CACHE_DIR,
+                ignore_patterns=exclude_patterns,
+                local_files_only=False,
+                resume_download=True
             )
-            logger.info(f"Successfully downloaded {name}")
+        )
+        logger.info(f"Successfully downloaded OpenCLIP")
 
 
     async def _download_yolo_models(self):

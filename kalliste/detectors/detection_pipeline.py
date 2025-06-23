@@ -42,13 +42,18 @@ class DetectionPipeline:
             
             # Handle face detection if requested
             if 'face' in detection_types:
+                logger.debug("🔍 About to create YOLOFaceDetector")
                 face_detector = YOLOFaceDetector(config)
+                logger.debug("✅ YOLOFaceDetector created")
+                
                 face_config = config['face']
+                logger.debug("🔍 About to run face detection")
                 face_regions = face_detector.detect(
                     image_path=image_path,
                     confidence_threshold=face_config.get('confidence_threshold', YOLOFaceDetector.DEFAULT_CONFIDENCE_THRESHOLD),
                     nms_threshold=face_config.get('nms_threshold', YOLOFaceDetector.DEFAULT_NMS_THRESHOLD)
                 )
+                logger.debug(f"✅ Face detection complete: found {len(face_regions)} faces")
                 # Set consistent region type for face detections
                 for region in face_regions:
                     region.kalliste_tags.pop("KallisteRegionType", None)  # Remove any existing tag
