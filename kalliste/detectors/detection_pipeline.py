@@ -64,7 +64,9 @@ class DetectionPipeline:
             # Handle YOLO detections for remaining types
             yolo_types = [t for t in detection_types if t in YOLO_CLASSES]
             if yolo_types:
+                logger.debug("🔍 About to create YOLODetector")
                 yolo_detector = YOLODetector(config)
+                logger.debug("✅ YOLODetector created")
                 # Convert types to class IDs
                 class_ids = [YOLO_CLASSES[t] for t in yolo_types]
                 

@@ -6,13 +6,13 @@ from kalliste import utils  # Sets up logging
 
 async def main():
     # Define paths
-    input_path = '/Volumes/g2/kalliste_photos/kalliste_input'
+    input_path = '/Volumes/m02/emily_test_1'
     output_path = '/Volumes/m01/kalliste_data/images'
-    processed_path = '/Volumes/g2/kalliste_photos/kalliste_processed'
-    
+    processed_path = '/Volumes/m02/emily_test_1_processed'
+
     # Create processed directory if it doesn't exist
     Path(processed_path).mkdir(exist_ok=True, parents=True)
-    
+
     processor = BatchProcessor(
         input_path=input_path,
         output_path=output_path,

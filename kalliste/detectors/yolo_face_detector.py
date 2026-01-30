@@ -47,6 +47,14 @@ class YOLOFaceDetector(BaseDetector):
             logger.debug(f"   Model type: {type(self.model)}")
             logger.debug(f"   Model device: {getattr(self.model, 'device', 'unknown')}")
             
+            # Check model internals before running
+            if hasattr(self.model, 'model') and hasattr(self.model.model, 'model'):
+                logger.debug(f"   Model has nested structure")
+                inner_model = self.model.model.model
+                if hasattr(inner_model, 'names'):
+                    logger.debug(f"   Model names: {inner_model.names}")
+            
+            logger.debug("🎯 About to call model() for inference")
             # Run inference with face detection model
             pred = self.model(
                 str(image_path),
@@ -54,6 +62,7 @@ class YOLOFaceDetector(BaseDetector):
                 iou=nms_threshold,
                 verbose=False  # Suppress YOLO's output
             )[0]
+            logger.debug("✔️ model() inference complete")
             
             logger.debug(f"✅ YOLO face detection completed, found {len(pred.boxes)} faces")
             
