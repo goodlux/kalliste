@@ -2,17 +2,20 @@
 """
 Kalliste CLI - Simple command line interface for the image processing pipeline.
 """
+
 import asyncio
-import click
 import logging
 import sys
 from pathlib import Path
+
+import click
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.logging import RichHandler
 
 console = Console()
+
 
 # Set up logging with Rich handler for pretty output
 def setup_logging(verbose: bool = False):
@@ -29,9 +32,9 @@ def setup_logging(verbose: bool = False):
                 rich_tracebacks=True,
                 console=console,
                 show_time=False,  # We'll use rich progress instead
-                show_path=False   # Keep it clean
+                show_path=False,  # Keep it clean
             )
-        ]
+        ],
     )
 
     # Silence noisy libraries
@@ -40,23 +43,37 @@ def setup_logging(verbose: bool = False):
     logging.getLogger("PIL").setLevel(logging.WARNING)
     logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
+
 @click.group()
 @click.version_option()
 def main():
     """Kalliste - Image tagging and cropping for Stable Diffusion training."""
     console.print(Panel.fit("🎨 Kalliste Image Processing", style="bold blue"))
 
+
 @main.command()
-@click.option('--input', '-i', type=click.Path(exists=True, path_type=Path),
-              default=Path('/Volumes/m02/kalliste_photos/kalliste_input'),
-              help='Input directory with images to process')
-@click.option('--output', '-o', type=click.Path(path_type=Path),
-              default=Path('/Volumes/m01/kalliste_data/images'),
-              help='Output directory for processed images')
-@click.option('--processed', '-p', type=click.Path(path_type=Path),
-              default=Path('/Volumes/m02/kalliste_photos/kalliste_processed'),
-              help='Directory to move processed input images')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+@click.option(
+    "--input",
+    "-i",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("/Volumes/m01/kalliste_photos/input"),
+    help="Input directory with images to process",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=Path("/Volumes/m01/kalliste_data/images"),
+    help="Output directory for processed images",
+)
+@click.option(
+    "--processed",
+    "-p",
+    type=click.Path(path_type=Path),
+    default=Path("/Volumes/m01/kalliste_photos/processed"),
+    help="Directory to move processed input images",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 def process(input, output, processed, verbose):
     """Process images through the full Kalliste pipeline."""
     # Set up logging first
@@ -73,6 +90,7 @@ def process(input, output, processed, verbose):
     # Run the async pipeline
     asyncio.run(_run_pipeline(input, output, processed))
 
+
 async def _run_pipeline(input_path: Path, output_path: Path, processed_path: Path):
     """Run the async processing pipeline."""
     try:
@@ -84,7 +102,7 @@ async def _run_pipeline(input_path: Path, output_path: Path, processed_path: Pat
         processor = BatchProcessor(
             input_path=str(input_path),
             output_path=str(output_path),
-            processed_path=str(processed_path)
+            processed_path=str(processed_path),
         )
 
         console.print("[yellow]🔌 Initializing models...[/yellow]")
@@ -102,6 +120,7 @@ async def _run_pipeline(input_path: Path, output_path: Path, processed_path: Pat
     except Exception as e:
         console.print(f"❌ Error: {e}", style="bold red")
         raise
+
 
 @main.command()
 def deps():
@@ -132,6 +151,7 @@ def deps():
         console.print("\n🎉 All dependencies are installed!", style="bold green")
     else:
         console.print("\n💡 Run: uv sync", style="bold yellow")
+
 
 if __name__ == "__main__":
     main()
