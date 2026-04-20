@@ -4,8 +4,8 @@ Analysis script to understand what's available in the Milvus database
 for training set creation.
 
 Usage:
-    python analyze_milvus_content.py
-    python analyze_milvus_content.py --min-nima 6.0
+    uv run scripts/analyze_milvus_content.py
+    uv run scripts/analyze_milvus_content.py --min-nima 6.0
 """
 import sys
 import os

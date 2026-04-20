@@ -6,8 +6,8 @@ Create training dataset for a specific person (character LoRA).
 - Copies both image files and sidecar .txt files
 
 Usage:
-    python create_character_dataset.py --person NaGiLux --video-count 5000
-    python create_character_dataset.py --person NaGiLux --video-count 3000 --min-technical 0.50 --dry-run
+    uv run scripts/create_character_dataset.py --person NaGiLux --video-count 5000
+    uv run scripts/create_character_dataset.py --person NaGiLux --video-count 3000 --min-technical 0.50 --dry-run
 """
 import sys
 import os

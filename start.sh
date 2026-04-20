@@ -16,9 +16,12 @@ if [ ! -f "pyproject.toml" ]; then
     exit 1
 fi
 
+# Clear stale env vars from other package managers
+unset VIRTUAL_ENV CONDA_DEFAULT_ENV CONDA_PREFIX 2>/dev/null
+
 # Install/sync dependencies
 echo "📦 Installing dependencies with uv..."
-uv sync
+uv sync --python 3.11
 
 # Start milvus if needed
 if [ -f "docker-compose.yml" ]; then

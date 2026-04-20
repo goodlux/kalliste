@@ -6,9 +6,6 @@ KALLISTE_DATA_DIR = "/Volumes/m01/kalliste_data"
 # Kalliste database settings
 KALLISTE_DB_PATH = "/Volumes/m01/kalliste_data/kalliste_db/kalliste.sqlite3"
 
-# Chroma database settings
-CHROMA_DB_DIR = "/Volumes/m01/kalliste_data/chroma_db"
-
 
 # Cache directories
 CACHE_DIR = "~/.cache"

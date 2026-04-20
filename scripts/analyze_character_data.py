@@ -3,8 +3,8 @@
 Analysis script focused on NIMA technical scores for character dataset creation.
 
 Usage:
-    python analyze_character_data.py --person NaGiLux
-    python analyze_character_data.py --person NaGiLux --min-technical 0.4
+    uv run scripts/analyze_character_data.py --person NaGiLux
+    uv run scripts/analyze_character_data.py --person NaGiLux --min-technical 0.4
 """
 import sys
 import os

@@ -5,16 +5,16 @@ and export them to a dataset folder.
 
 Examples:
     # Select acceptable images from a specific person:
-    python select_milvus_images.py --query "person_name == 'ArMcLux' && nima_assessment_overall == 'acceptable'" --dataset_name "armclux_acceptable"
+    uv run scripts/select_milvus_images.py --query "person_name == 'ArMcLux' && nima_assessment_overall == 'acceptable'" --dataset_name "armclux_acceptable"
 
     # Select images with a limit:
-    python select_milvus_images.py --query "person_name == 'ArMcLux' && nima_assessment_overall == 'acceptable'" --dataset_name "armclux_acceptable" --limit 50
+    uv run scripts/select_milvus_images.py --query "person_name == 'ArMcLux' && nima_assessment_overall == 'acceptable'" --dataset_name "armclux_acceptable" --limit 50
     
     # Select images with good rating:
-    python select_milvus_images.py --query "lr_rating >= 3" --dataset_name "high_rated_images"
+    uv run scripts/select_milvus_images.py --query "lr_rating >= 3" --dataset_name "high_rated_images"
 
     # Select images by photoshoot:
-    python select_milvus_images.py --query "photoshoot == 'Studio2024'" --dataset_name "studio_photoshoot"
+    uv run scripts/select_milvus_images.py --query "photoshoot == 'Studio2024'" --dataset_name "studio_photoshoot"
 """
 import sys
 import os

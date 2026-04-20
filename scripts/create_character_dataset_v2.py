@@ -8,9 +8,9 @@ Create training dataset for a specific person (character LoRA).
 - Automatically syncs to remote server
 
 Usage:
-    python create_character_dataset_v2.py --person KyCoLux --video-count 5000
-    python create_character_dataset_v2.py --person KyCoLux  # Copies ALL videos
-    python create_character_dataset.py --person KyCoLux --video-count 3000 --no-sync --dry-run
+    uv run scripts/create_character_dataset_v2.py --person KyCoLux --video-count 5000
+    uv run scripts/create_character_dataset_v2.py --person KyCoLux  # Copies ALL videos
+    uv run scripts/create_character_dataset_v2.py --person KyCoLux --video-count 3000 --no-sync --dry-run
 """
 
 import argparse

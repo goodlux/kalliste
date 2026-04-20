@@ -134,7 +134,6 @@ def deps():
         ("cv2", "OpenCV"),
         ("PIL", "Pillow"),
         ("numpy", "NumPy"),
-        ("chromadb", "ChromaDB"),
         ("pymilvus", "Milvus"),
     ]
 

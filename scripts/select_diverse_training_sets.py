@@ -6,8 +6,8 @@ Creates two sets of ~5000 images each: photographs and video stills.
 Uses clustering on embeddings for diversity and NIMA scores for quality selection.
 
 Usage:
-    python select_diverse_training_sets.py --target-count 5000 --min-nima-score 6.0
-    python select_diverse_training_sets.py --target-count 3000 --min-nima-score 5.5 --dry-run
+    uv run scripts/select_diverse_training_sets.py --target-count 5000 --min-nima-score 6.0
+    uv run scripts/select_diverse_training_sets.py --target-count 3000 --min-nima-score 5.5 --dry-run
 """
 import sys
 import os
@@ -32,7 +32,7 @@ try:
     from sklearn.preprocessing import StandardScaler
     HAS_SKLEARN = True
 except ImportError:
-    print("Warning: sklearn not available. Install with: pip install scikit-learn")
+    print("Warning: sklearn not available. Install with: uv pip install scikit-learn")
     HAS_SKLEARN = False
 
 # Set up logging

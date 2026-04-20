@@ -15,7 +15,6 @@ from .caption_file_writer import CaptionFileWriter
 from .exif_writer import ExifWriter
 from ..tag.kalliste_tag import KallisteStringTag
 from ..db.kalliste_db import KallisteDB
-from ..db.chroma_db import ChromaDB
 from ..db.milvus_db import MilvusDB
 import io
 import base64
@@ -43,7 +42,6 @@ class CroppedImage:
 
         # Initialize KallisteDB
         self.db = KallisteDB()
-        self.chroma_db = ChromaDB()
         
     async def process(self):
         """Process the cropped region."""
@@ -185,10 +183,6 @@ class CroppedImage:
                 # image_id = self.db.add_image(str(output_path), self.region.kalliste_tags)
                 # logger.info(f"Added to database with ID: {image_id}")
 
-                # # Add the image to chroma
-                # self.chroma_db.add_image_to_chroma(str(image_id), str(output_path))
-                # logger.info(f"Added image: {image_id} to Chroma")
-                
                 # Return success with assessment info
                 return {
                     "success": True,
